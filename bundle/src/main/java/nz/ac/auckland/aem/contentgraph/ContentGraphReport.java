@@ -2,6 +2,7 @@ package nz.ac.auckland.aem.contentgraph;
 
 import com.day.cq.wcm.api.Page;
 import nz.ac.auckland.aem.utils.HttpContext;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.felix.scr.annotations.*;
 import org.apache.felix.scr.annotations.sling.SlingServlet;
 import org.apache.sling.api.SlingHttpServletRequest;
@@ -57,16 +58,22 @@ public class ContentGraphReport extends SlingSafeMethodsServlet {
 
     @Override
     protected void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws ServletException, IOException {
-        showHeader();
-
         this.context.setContext(request, response);
+
+        if (StringUtils.isBlank(request.getParameter("paths"))) {
+            this.context.println("Error: Please specify the `paths` parameter with comma separated content-paths");
+            this.context.getResponse().flushBuffer();
+            return;
+        }
+
+        showHeader();
 
         ResourceResolver resolver = null;
         try {
             resolver = rrFactory.getAdministrativeResourceResolver(null);
 
             Node node = null;
-            String[] basePaths = new String[] {"/content/abi"};
+            String[] basePaths = request.getParameter("paths").split(",");
 
             // iterate over the base paths
             for (String basePath : basePaths) {
