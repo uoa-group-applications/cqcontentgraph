@@ -158,12 +158,6 @@
 	    	<artifactId>org.apache.sling.auth.core</artifactId>
 	    	<scope>provided</scope>
 	    </dependency>
-        <dependency>
-            <groupId>nz.ac.auckland.aem</groupId>
-            <artifactId>central-bundle</artifactId>
-            <version>1.0-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
 </project>
 
