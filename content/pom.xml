@@ -87,7 +87,7 @@
                         <artifactId>content-package-maven-plugin</artifactId>
                         <extensions>true</extensions>
                         <configuration>
-                            <group>orientation</group>
+                            <group>contentgraph</group>
                             <filters>
                                 <filter>
                                     <root>/apps/contentgraph</root>

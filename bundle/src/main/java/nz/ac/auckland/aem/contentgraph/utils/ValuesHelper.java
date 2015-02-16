@@ -45,7 +45,12 @@ public class ValuesHelper {
         if (strValue == null) {
             return null;
         }
-        return strValue.replace("{", "\\{").replace("}", "\\}");
+        return strValue
+                .replace("{", "\\{")
+                .replace("}", "\\}")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+             ;
     }
 
     /**

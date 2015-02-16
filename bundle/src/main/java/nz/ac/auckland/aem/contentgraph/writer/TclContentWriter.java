@@ -63,7 +63,7 @@ public class TclContentWriter implements ContentWriter {
                         "-path {%s} " +
                         "-type {%s} " +
                         "-sub {%s} " +
-                        "-resourceType {%s}",
+                        "-resourceType {%s} #;",
                 escapeCurlyBraces(title),
                 getPagePath(node),
                 node.getPrimaryNodeType().getName(),
@@ -126,7 +126,7 @@ public class TclContentWriter implements ContentWriter {
      */
     protected void writeProperty(String sub, String pagePath, Property property, String strValue) throws RepositoryException {
         context.println(
-                "P -path {%s} -sub {%s} -name {%s} -value {%s}",
+                "P -path {%s} -sub {%s} -name {%s} -value {%s} #;",
                 pagePath,
                 sub,
                 property.getName(),
