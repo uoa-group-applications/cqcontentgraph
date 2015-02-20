@@ -3,8 +3,10 @@ package nz.ac.auckland.aem.contentgraph;
 import com.day.cq.wcm.api.Page;
 
 import nz.ac.auckland.aem.contentgraph.utils.HttpContext;
-import nz.ac.auckland.aem.contentgraph.writer.ContentWriter;
-import nz.ac.auckland.aem.contentgraph.writer.ContentWriterFactory;
+import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriter;
+import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriterFactory;
+import nz.ac.auckland.aem.contentgraph.writer.stream.HttpContextStreamWriter;
+import nz.ac.auckland.aem.contentgraph.writer.stream.StreamWriter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.felix.scr.annotations.*;
 import org.apache.felix.scr.annotations.sling.SlingServlet;
@@ -67,13 +69,14 @@ public class ContentGraphReport extends SlingSafeMethodsServlet {
     @Override
     protected void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws ServletException, IOException {
         GraphReportConfig reportConfig = getReportConfigInstance(request);
+        StreamWriter stream = new HttpContextStreamWriter(this.context);
         if (reportConfig == null) {
             return;
         }
 
         this.context.setContext(request, response);
 
-        reportConfig.getWriter().showHeader();
+        reportConfig.getWriter().showHeader(stream);
 
         ResourceResolver resolver = null;
         try {
@@ -94,7 +97,7 @@ public class ContentGraphReport extends SlingSafeMethodsServlet {
             }
         }
 
-        reportConfig.getWriter().showFooter();
+        reportConfig.getWriter().showFooter(stream);
 
         this.context.getResponse().flushBuffer();
     }
@@ -163,6 +166,8 @@ public class ContentGraphReport extends SlingSafeMethodsServlet {
     private ChildIteratorType parseResource(GraphReportConfig reportConfig, Resource resource) throws RepositoryException {
 
         ContentWriter writer = reportConfig.getWriter();
+        StreamWriter stream = new HttpContextStreamWriter(this.context);
+
         Node node = resource.adaptTo(Node.class);
 
         if (isPage(node)) {
@@ -170,13 +175,13 @@ public class ContentGraphReport extends SlingSafeMethodsServlet {
             // get page
             Page page = getPageForNode(node);
 
-            writer.writeNode(node, page.getTitle());
-            writer.writeProperties(node);
+            writer.writeNode(stream, node, page.getTitle());
+            writer.writeProperties(stream, node);
 
         } else {
 
-            writer.writeNode(node, node.getName());
-            writer.writeProperties(node);
+            writer.writeNode(stream, node, node.getName());
+            writer.writeProperties(stream, node);
 
         }
 
@@ -236,7 +241,7 @@ public class ContentGraphReport extends SlingSafeMethodsServlet {
         if (StringUtils.isBlank(outputType)) {
             outputType = TCL;
         }
-        return ContentWriterFactory.create(context, outputType);
+        return ContentWriterFactory.create(outputType);
     }
 
 }

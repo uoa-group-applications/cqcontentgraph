@@ -1,8 +1,6 @@
 package nz.ac.auckland.aem.contentgraph;
 
-import nz.ac.auckland.aem.contentgraph.writer.ContentWriter;
-
-import java.util.List;
+import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriter;
 
 /**
  * @author Marnix Cook

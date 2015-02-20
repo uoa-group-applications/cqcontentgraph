@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:sling="http://sling.apache.org/jcr/sling/1.0" xmlns:cq="http://www.day.com/jcr/cq/1.0" xmlns:jcr="http://www.jcp.org/jcr/1.0" xmlns:nt="http://www.jcp.org/jcr/nt/1.0"
+    jcr:primaryType="cq:Page">
+    <jcr:content
+        cq:designPath="/etc/designs/default"
+        cq:lastModified="{Date}2015-02-19T17:49:35.176+13:00"
+        cq:lastModifiedBy="admin"
+        cq:template="/libs/cq/workflow/templates/model"
+        jcr:primaryType="cq:PageContent"
+        jcr:title="UoA Content Synchronisation"
+        sling:resourceType="cq/workflow/components/pages/model">
+        <flow
+            jcr:primaryType="nt:unstructured"
+            sling:resourceType="foundation/components/parsys">
+            <process
+                jcr:created="{Date}2015-02-19T17:49:04.568+13:00"
+                jcr:createdBy="admin"
+                jcr:description="This step invokes the CQ content synchroniser"
+                jcr:lastModified="{Date}2015-02-19T17:49:35.170+13:00"
+                jcr:lastModifiedBy="admin"
+                jcr:primaryType="nt:unstructured"
+                jcr:title="Synchroniser"
+                sling:resourceType="cq/workflow/components/model/process">
+                <metaData
+                    jcr:primaryType="nt:unstructured"
+                    PROCESS="nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep"
+                    PROCESS_ARGS="+/content&#xa;+/etc/tags&#xa;-/content/usergenerated&#xa;-/content/catalog"
+                    PROCESS_AUTO_ADVANCE="true"/>
+            </process>
+        </flow>
+        <model/>
+    </jcr:content>
+</jcr:root>

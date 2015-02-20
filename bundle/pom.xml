@@ -158,6 +158,11 @@
 	    	<artifactId>org.apache.sling.auth.core</artifactId>
 	    	<scope>provided</scope>
 	    </dependency>
+        <dependency>
+            <groupId>com.adobe.granite</groupId>
+            <artifactId>com.adobe.granite.workflow.api</artifactId>
+        </dependency>
+
     </dependencies>
 </project>
 
