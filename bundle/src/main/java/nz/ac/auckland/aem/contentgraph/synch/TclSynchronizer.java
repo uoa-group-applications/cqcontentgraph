@@ -5,9 +5,9 @@ import nz.ac.auckland.aem.contentgraph.ContentGraphReport;
 import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriter;
 import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriterFactory;
 import nz.ac.auckland.aem.contentgraph.writer.stream.SocketStreamWriter;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Service;
+import org.apache.felix.scr.annotations.*;
 import org.apache.sling.api.resource.Resource;
+import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +21,15 @@ import java.io.IOException;
  * Simple proof-of-concept synchronizer that writes to network socket
  */
 @Service
-@Component(immediate = true)
+@Component(immediate = true, metatype = true, label = "UoA TCL Synchronizer")
+@Properties({
+    @Property(
+        name = "enabled",
+        boolValue = false,
+        label = "Enable the TCL synchronizer",
+        description = "This will write to the debug synchronizer, make sure this is disabled in prod."
+    )
+})
 public class TclSynchronizer implements Synchronizer {
 
     /**
@@ -29,8 +37,28 @@ public class TclSynchronizer implements Synchronizer {
      */
     private static final Logger LOG = LoggerFactory.getLogger(TclSynchronizer.class);
 
+    /**
+     * Enable TCL synchronizer
+     */
+    private boolean enabled = false;
+
+    /**
+     * Activate called when configuration changes
+     *
+     * @param context
+     */
+    @Activate @Modified
+    public void activateBundle(ComponentContext context) {
+        this.enabled = (Boolean) context.getProperties().get("enabled");
+    }
+
+
     @Override
     public void delete(String path) {
+        if (!this.enabled) {
+            return;
+        }
+
         ContentWriter writer = ContentWriterFactory.create("tcl");
 
         SocketStreamWriter stream = null;
@@ -58,6 +86,9 @@ public class TclSynchronizer implements Synchronizer {
      */
     @Override
     public void synch(Resource resource) {
+        if (!this.enabled) {
+            return;
+        }
 
         SocketStreamWriter stream = null;
 
