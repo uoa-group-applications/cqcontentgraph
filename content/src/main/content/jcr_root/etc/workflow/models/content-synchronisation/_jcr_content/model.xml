@@ -25,7 +25,6 @@
             <metaData
                 jcr:primaryType="nt:unstructured"
                 PROCESS="nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep"
-                PROCESS_ARGS="+/content&#xa;+/etc/tags&#xa;-/content/usergenerated&#xa;-/content/catalog"
                 PROCESS_AUTO_ADVANCE="true"/>
         </node1>
         <node2

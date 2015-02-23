@@ -8,13 +8,12 @@ import com.adobe.granite.workflow.exec.WorkflowProcess;
 import com.adobe.granite.workflow.metadata.MetaDataMap;
 import nz.ac.auckland.aem.contentgraph.synch.CompositeSynchronizer;
 import nz.ac.auckland.aem.contentgraph.utils.ValidPathHelper;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.Service;
+import org.apache.felix.scr.annotations.*;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +28,26 @@ import javax.jcr.Value;
  * server. Its launcher configuration can be found in the content package.
  */
 @Service
-@Component(immediate = true)
+@Component(
+    metatype = true,
+    immediate = true,
+    name = "UoA Synchronize Content Workflow Step",
+    description = "Used to synchronize content between JCR and RDBMS"
+)
+@Properties({
+    @Property(
+        name = "include",
+        label = "Include these paths",
+        description = "Paths that are included in synchronization (eg. /content/, /etc/tags)",
+        cardinality = Integer.MAX_VALUE
+    ),
+    @Property(
+        name = "exclude",
+        label = "Exclude these paths",
+        description = "Paths that are excluded from synchronization (eg. /content/usergenerated, /content/catalog)",
+        cardinality = Integer.MAX_VALUE
+    )
+})
 public class SynchWorkflowStep implements WorkflowProcess {
 
     @Reference
@@ -39,9 +57,25 @@ public class SynchWorkflowStep implements WorkflowProcess {
     private ResourceResolverFactory resourceResolverFactory;
 
     /**
+     * Include paths
+     */
+    private String[] includePaths;
+
+    /**
+     * Exclude paths
+     */
+    private String[] excludePaths;
+
+    /**
      * Logger
      */
     private static final Logger LOG = LoggerFactory.getLogger(SynchWorkflowStep.class);
+
+    @Activate @Modified
+    public void activate(ComponentContext context) {
+        this.includePaths = (String[]) context.getProperties().get("include");
+        this.excludePaths = (String[]) context.getProperties().get("exclude");
+    }
 
     /**
      * Execute the workflow
@@ -64,7 +98,7 @@ public class SynchWorkflowStep implements WorkflowProcess {
         ResourceResolver resolver = null;
         try {
             String path = workflowData.getPayload().toString();
-            if (!ValidPathHelper.isTrackedContentPath(path, getArguments(metaDataMap))) {
+            if (!ValidPathHelper.isTrackedContentPath(path, includePaths, excludePaths)) {
                 LOG.info("`{}` is not a tracked path", path);
                 return;
             }
@@ -82,9 +116,6 @@ public class SynchWorkflowStep implements WorkflowProcess {
                 this.compositeSync.synch(resource);
             }
         }
-        catch (RepositoryException rEx) {
-            LOG.error("Something went wrong in the repository", rEx);
-        }
         catch (LoginException lEx) {
             LOG.error("Unable to login to get resource resolver", lEx);
         }
@@ -93,12 +124,6 @@ public class SynchWorkflowStep implements WorkflowProcess {
                 resolver.close();
             }
         }
-    }
-
-
-
-    private String getArguments(MetaDataMap metaDataMap) throws RepositoryException {
-        return ((Value) metaDataMap.get("PROCESS_ARGS")).getString();
     }
 
     protected boolean isValidPayload(WorkflowData workflowData) {
