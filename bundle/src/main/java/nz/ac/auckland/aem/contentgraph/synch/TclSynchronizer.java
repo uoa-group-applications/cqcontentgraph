@@ -5,6 +5,7 @@ import nz.ac.auckland.aem.contentgraph.ContentGraphReport;
 import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriter;
 import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriterFactory;
 import nz.ac.auckland.aem.contentgraph.writer.stream.SocketStreamWriter;
+import org.apache.commons.lang.StringUtils;
 import org.apache.felix.scr.annotations.*;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.ComponentContext;
@@ -28,6 +29,18 @@ import java.io.IOException;
         boolValue = false,
         label = "Enable the TCL synchronizer",
         description = "This will write to the debug synchronizer, make sure this is disabled in prod."
+    ),
+    @Property(
+        name = "host",
+        value = "localhost",
+        label = "TCL server host",
+        description = "Hostname of the synchronization PoC server"
+    ),
+    @Property(
+        name = "port",
+        intValue = 10101,
+        label = "TCL server port",
+        description = "Port of the synchronization PoC server"
     )
 })
 public class TclSynchronizer implements Synchronizer {
@@ -43,6 +56,16 @@ public class TclSynchronizer implements Synchronizer {
     private boolean enabled = false;
 
     /**
+     * Tcl Hostname
+     */
+    private String host;
+
+    /**
+     * Tcl port name
+     */
+    private Integer port;
+
+    /**
      * Activate called when configuration changes
      *
      * @param context
@@ -50,6 +73,15 @@ public class TclSynchronizer implements Synchronizer {
     @Activate @Modified
     public void activateBundle(ComponentContext context) {
         this.enabled = (Boolean) context.getProperties().get("enabled");
+        this.host = (String) context.getProperties().get("host");
+        this.port = (Integer) context.getProperties().get("port");
+
+        if (StringUtils.isBlank(this.host)) {
+            this.host = "localhost";
+        }
+        if (this.port <= 0 || this.port >= 65536) {
+            this.port = 10101;
+        }
     }
 
 
@@ -63,7 +95,7 @@ public class TclSynchronizer implements Synchronizer {
 
         SocketStreamWriter stream = null;
         try {
-            stream = new SocketStreamWriter("localhost", 10101);
+            stream = new SocketStreamWriter(this.host, this.port);
             writer.deleteNode(stream, path);
         }
         catch (RepositoryException rEx) {
@@ -95,7 +127,7 @@ public class TclSynchronizer implements Synchronizer {
         try {
             Node node = resource.adaptTo(Node.class);
             ContentWriter writer = ContentWriterFactory.create("tcl");
-            stream = new SocketStreamWriter("localhost", 10101);
+            stream = new SocketStreamWriter(this.host, this.port);
 
             if (isPage(node)) {
                 Page page = resource.adaptTo(Page.class);
