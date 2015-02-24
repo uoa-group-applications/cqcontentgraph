@@ -118,6 +118,16 @@
                                     <artifactId>contentgraph-bundle</artifactId>
                                     <target>/apps/contentgraph/install</target>
                                 </embedded>
+								<embedded>
+									<groupId>${project.groupId></groupId>
+									<artifactId>tclsynchronizer</artifactId>
+									<target>/apps/contentgraph/install</target>
+								</embedded>
+								<embedded>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>dbsynchronizer</artifactId>
+									<target>/apps/contentgraph/install</target>
+								</embedded>
                             </embeddeds>
                             <targetURL>http://${crx.host}:${crx.port}/crx/packmgr/service.jsp</targetURL>
                         </configuration>

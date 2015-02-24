@@ -1,7 +1,8 @@
-package nz.ac.auckland.aem.contentgraph.synch;
+package nz.ac.auckland.aem.contentgraph.tclsynch;
 
 import com.day.cq.wcm.api.Page;
 import nz.ac.auckland.aem.contentgraph.ContentGraphReport;
+import nz.ac.auckland.aem.contentgraph.synch.Synchronizer;
 import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriter;
 import nz.ac.auckland.aem.contentgraph.writer.content.ContentWriterFactory;
 import nz.ac.auckland.aem.contentgraph.writer.stream.SocketStreamWriter;
