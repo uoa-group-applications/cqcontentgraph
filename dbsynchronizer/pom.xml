@@ -67,8 +67,18 @@
                     <instructions>
                         <Bundle-SymbolicName>nz.ac.auckland.aem.contentgraph.dbsynch</Bundle-SymbolicName>
                         <Export-Package>
-                            nz.ac.auckland.aem.contentgraph.*
+                            nz.ac.auckland.aem.contentgraph.dbsynch.*,
+                            com.mysql.jdbc.*
                         </Export-Package>
+                        <Embed-Dependency>
+                            mysql-connector-java
+                        </Embed-Dependency>
+                        <Import-Package>
+                            com.mchange.v2.*;resolution:=optional,
+                            org.hibernate.*;resolution:=optional,
+                            org.jboss.*;resolution:=optional,
+                            *
+                        </Import-Package>
                     </instructions>
                 </configuration>
             </plugin>
@@ -84,6 +94,13 @@
     </build>
 
     <dependencies>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>5.1.34</version>
+        </dependency>
+
         <dependency>
             <groupId>nz.ac.auckland.aem</groupId>
             <artifactId>contentgraph-bundle</artifactId>
