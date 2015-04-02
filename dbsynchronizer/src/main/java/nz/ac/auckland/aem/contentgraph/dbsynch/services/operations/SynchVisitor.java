@@ -1,4 +1,4 @@
-package nz.ac.auckland.aem.contentgraph.dbsynch.reindex;
+package nz.ac.auckland.aem.contentgraph.dbsynch.services.operations;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

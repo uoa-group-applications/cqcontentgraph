@@ -7,8 +7,6 @@
     description="No Description"
     title="UoA Content Synchronisation">
     <metaData
-        cq:lastModified="{Long}1424321380189"
-        cq:lastModifiedBy="admin"
         jcr:primaryType="nt:unstructured"/>
     <nodes jcr:primaryType="nt:unstructured">
         <node0
@@ -24,7 +22,7 @@
             type="PROCESS">
             <metaData
                 jcr:primaryType="nt:unstructured"
-                PROCESS="nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep"
+                PROCESS="nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStepImpl"
                 PROCESS_AUTO_ADVANCE="true"/>
         </node1>
         <node2

@@ -6,6 +6,7 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.PropertyDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.NodeTransform;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
 import nz.ac.auckland.aem.contentgraph.synch.Synchronizer;
 import org.apache.felix.scr.annotations.*;
@@ -68,7 +69,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
     private PropertyDAO propertyDao = getPropertyDAOInstance();
     private NodeTransform trans = getNodeTransformInstance();
     private TransactionManager txMgr = getTxMgrInstance();
-
+    private SynchronizationManager sMgr = new SynchronizationManager();
 
     /**
      * Logger
@@ -129,32 +130,57 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
 
         Node jcrNode = resource.adaptTo(Node.class);
 
-        Connection conn = null;
+        Connection dbConn = null;
 
         try {
-            conn = getDatabaseConnection(this.connInfo);
+            dbConn = getDatabaseConnection(this.connInfo);
+
+            // can we write right now? if not, end.
+            if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
+                LOG.error("Cannot update, synchronizer is currently busy or disabled");
+                return;
+            }
+
+            // set state to update.
+            sMgr.startUpdate(dbConn, jcrNode);
 
             NodeDTO nodeDto = trans.getNodeDTO(jcrNode);
             List<PropertyDTO> propertyDtos = trans.getPropertyDTOList(jcrNode);
 
-            txMgr.start(conn);
+            txMgr.start(dbConn);
 
-            Long nodeId = nodeDao.insert(conn, nodeDto);
+            Long nodeId = nodeDao.insert(dbConn, nodeDto);
+
+            // TODO: remove existing properties
 
             for (PropertyDTO prop : propertyDtos) {
                 prop.setNodeId(nodeId);
-                propertyDao.insert(conn, prop);
+                propertyDao.insert(dbConn, prop);
             }
 
-            txMgr.commit(conn);
+            txMgr.commit(dbConn);
+            sMgr.finished(dbConn);
         }
-        catch (SQLException sqlEx) {
-            rollback(conn);
+        catch (Exception ex) {
+            rollback(dbConn);
+            writeFinishedWithError(dbConn, ex.getMessage());
         }
         finally {
-            closeQuietly(conn);
+            closeQuietly(dbConn);
         }
 
+    }
+
+    /**
+     * Write the error to the database
+     */
+    protected void writeFinishedWithError(Connection conn, String error) {
+        try {
+            sMgr.finishedWithError(conn, error);
+        }
+        catch (SQLException sqlEx) {
+            LOG.error("Could not write finish status to database, queue will be broken.", sqlEx);
+        }
     }
 
 

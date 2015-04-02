@@ -1,10 +1,15 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.reindex;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
-import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizerImpl;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitor;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitorManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
+import nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.Service;
@@ -36,6 +41,9 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
      */
     private static final Logger LOG = LoggerFactory.getLogger(DatabaseReindexerImpl.class);
 
+    @Reference
+    private SynchWorkflowStep synchWorkflowStep;
+
     /**
      * Necessary to get the database connection information
      */
@@ -53,15 +61,14 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
      */
     private ResourceResolver resourceResolver;
 
-    /**
-     * Synchronization manager
-     */
+    private TransactionManager txMgr = getTransactionManager();
     private SynchronizationManager sMgr = getSynchronizationManagerInstance();
+    private SynchVisitorManager svMgr = getSynchVisitorManager();
 
-    /**
-     * Synchronize visitor instance
-     */
     private SynchVisitor sVisitor = getSynchVisitorInstance();
+    private PropertyDAO propertyDAO = getPropertyDAO();
+    private NodeDAO nodeDAO = getNodeDAO();
+
 
     /**
      * The runnable method
@@ -76,9 +83,14 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
         try {
             dbConn = JDBCHelper.getDatabaseConnection(connInfo);
             sMgr.startReindex(dbConn);
+            txMgr.start(dbConn);
+
+            // remove all existing content.
+            propertyDAO.truncate(dbConn);
+            nodeDAO.truncate(dbConn);
 
             // iterate over all base paths
-            for (String includePath : this.getIncludePaths()) {
+            for (String includePath : this.synchWorkflowStep.getIncludePaths()) {
                 Resource inclResource = this.getResourceResolver().getResource(includePath);
                 if (inclResource == null) {
                     LOG.error("Could not find `{}`, skipping", includePath);
@@ -88,14 +100,18 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 Node inclNode = inclResource.adaptTo(Node.class);
 
                 // recurse
-                recursiveVisit(inclNode, this.getExcludePaths(), this.sVisitor);
+                svMgr.recursiveVisit(inclNode, this.synchWorkflowStep.getExcludedPaths(), this.sVisitor);
             }
 
+            txMgr.commit(dbConn);
             sMgr.finished(dbConn);
 
             LOG.info("Successfully finished the re-indexing process");
         }
         catch (Exception ex) {
+            txMgr.rollback(dbConn);
+
+            // write errors
             LOG.error("Something went wrong during the reindexing process. Finished with errors.", ex);
             writeErrorMessage(dbConn, ex);
         }
@@ -105,6 +121,9 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
 
     }
 
+    /**
+     * Write an error message to the synchstate table.
+     */
     protected void writeErrorMessage(Connection dbConn, Exception ex) {
         if (dbConn != null) {
             try {
@@ -114,80 +133,6 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 LOG.error("Cannot reset the state, queue will probably malfunction from now .. !", sqlEx);
             }
         }
-    }
-
-    /**
-     * Recursive visit through base
-     *
-     * @param base is the base path to iterate from
-     * @param exclude all the paths that are to be excluded from visting
-     * @param visitor the visitor to call the node with
-     */
-    protected void recursiveVisit(Node base, String[] exclude, SynchVisitor visitor) throws RepositoryException {
-        // base cases
-
-        // 1. null?
-        if (base == null) {
-            return;
-        }
-
-        // 2. excluded path?
-        if (isExcludedPath(base.getPath(), exclude)) {
-            return;
-        }
-
-        // execute.
-        visitor.visit(base);
-
-        // children? recurse.
-        if (base.hasNodes()) {
-            NodeIterator nIterator = base.getNodes();
-            while (nIterator.hasNext()) {
-                Node childNode = nIterator.nextNode();
-                recursiveVisit(childNode, exclude, visitor);
-            }
-        }
-    }
-
-    /**
-     * Determine whether the <code>path</code> is excluded
-     *
-     * @param path is the path to check
-     * @param exclude is the list of exclusions
-     * @return true if the path is an exclusion path
-     * @throws RepositoryException
-     */
-    protected boolean isExcludedPath(String path, String[] exclude) throws RepositoryException {
-        for (String exclPath : exclude) {
-            if (path.startsWith(exclPath)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-    /**
-     * TODO: Read from bundle configuration
-     *
-     * @return all the paths that should be read
-     */
-    protected String[] getIncludePaths() {
-        return new String[] {
-            "/content",
-            "/etc/tags"
-        };
-    }
-
-    /**
-     * TODO: Read from bundle configuration
-     *
-     * @return the paths that should not be read
-     */
-    protected String[] getExcludePaths() {
-        return new String[] {
-            "/content/usergenerated"
-        };
     }
 
     /**
@@ -214,7 +159,28 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
         return null;
     }
 
+    // ------------------------------------------------------------------------
+    //    Class seam definition
+    // ------------------------------------------------------------------------
+
     protected SynchVisitor getSynchVisitorInstance() {
         return new SynchVisitor();
     }
+
+    protected NodeDAO getNodeDAO() {
+        return new NodeDAO();
+    }
+
+    protected TransactionManager getTransactionManager() {
+        return new TransactionManager();
+    }
+
+    protected PropertyDAO getPropertyDAO() {
+        return new PropertyDAO();
+    }
+
+    protected SynchVisitorManager getSynchVisitorManager() {
+        return new SynchVisitorManager();
+    }
+
 }

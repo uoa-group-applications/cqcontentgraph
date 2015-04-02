@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 
 import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.escape;
 
@@ -106,9 +107,9 @@ public class SynchronizationManager {
     /**
      * Indicate a periodic update is now taking place.
      */
-    public void startPeriodicUpdate(Connection conn, Calendar from) throws SQLException {
-        SimpleDateFormat sdFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm");
-        String fromTime = sdFormat.format(from.getTime());
+    public void startPeriodicUpdate(Connection conn, Date from) throws SQLException {
+        SimpleDateFormat sdFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+        String fromTime = from == null ? "beginning of time" : sdFormat.format(from);
         this.setSynchState(conn, "periodic_update", "Looking for changes since " + fromTime);
     }
 
