@@ -121,6 +121,13 @@ public class SynchronizationManager {
     }
 
     /**
+     * Indicate that an update has started on node <code>node</code>
+     */
+    public void startDelete(Connection conn, String nodePath) throws SQLException {
+        this.setSynchState(conn, "update", String.format("Deleting `%s`", nodePath));
+    }
+
+    /**
      * The process finished succesfully, flag is no longer set to busy.
      */
     public void finished(Connection conn) throws SQLException {

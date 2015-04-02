@@ -4,7 +4,8 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitor;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
 import org.apache.felix.scr.annotations.*;
@@ -16,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import java.sql.*;
-import java.util.Calendar;
 import java.util.NoSuchElementException;
 
 /**
@@ -93,7 +93,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
 
     private SynchronizationManager sMgr = getSynchronizationManager();
     private TransactionManager txMgr = getTransactionManager();
-    private SynchVisitor synchVisitor = getSynchVisitor();
+    private SynchVisitor<Node> synchVisitor = getSynchVisitor();
 
 
     /**
@@ -195,7 +195,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
                     Node node = nIterator.nextNode();
                     LOG.info("Periodic update for: " + node.getPath());
 
-                    this.synchVisitor.visit(node);
+                    this.synchVisitor.visit(dbConn, node);
                 }
             }
 
@@ -289,8 +289,8 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     /**
      * @return the synch visitor instance
      */
-    protected SynchVisitor getSynchVisitor() {
-        return new SynchVisitor();
+    protected SynchVisitor<Node> getSynchVisitor() {
+        return new PersistSynchVisitor();
     }
 
 

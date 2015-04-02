@@ -5,7 +5,7 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitor;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitorManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
@@ -21,8 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.jcr.Node;
-import javax.jcr.NodeIterator;
-import javax.jcr.RepositoryException;
 import java.sql.Connection;
 import java.sql.SQLException;
 

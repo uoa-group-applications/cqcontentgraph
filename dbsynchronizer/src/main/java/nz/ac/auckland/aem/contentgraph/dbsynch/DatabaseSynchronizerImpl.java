@@ -1,14 +1,11 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch;
 
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.PropertyDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.NodeTransform;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.DeleteSynchVisitor;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
-import nz.ac.auckland.aem.contentgraph.synch.Synchronizer;
 import org.apache.felix.scr.annotations.*;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.ComponentContext;
@@ -17,7 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.jcr.Node;
 import java.sql.*;
-import java.util.List;
 
 import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.*;
 import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.closeQuietly;
@@ -65,9 +61,6 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
     //      Bundle parameter constants
     // -----------------------------------------------------------------
 
-    private NodeDAO nodeDao = getNodeDAOInstance();
-    private PropertyDAO propertyDao = getPropertyDAOInstance();
-    private NodeTransform trans = getNodeTransformInstance();
     private TransactionManager txMgr = getTxMgrInstance();
     private SynchronizationManager sMgr = new SynchronizationManager();
 
@@ -85,6 +78,18 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
      * Connection information
      */
     private ConnectionInfo connInfo;
+
+    /**
+     * Persist visitor
+     */
+    private SynchVisitor<Node> persistVisitor = getPersistSynchVisitor();
+
+    /**
+     * Delete visitor
+     */
+    private SynchVisitor<String> deleteVisitor = getDeleteSynchVisitor();
+
+
 
     /**
      * Called when the configuration changed
@@ -143,22 +148,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
 
             // set state to update.
             sMgr.startUpdate(dbConn, jcrNode);
-
-            NodeDTO nodeDto = trans.getNodeDTO(jcrNode);
-            List<PropertyDTO> propertyDtos = trans.getPropertyDTOList(jcrNode);
-
-            txMgr.start(dbConn);
-
-            Long nodeId = nodeDao.insert(dbConn, nodeDto);
-
-            // TODO: remove existing properties
-
-            for (PropertyDTO prop : propertyDtos) {
-                prop.setNodeId(nodeId);
-                propertyDao.insert(dbConn, prop);
-            }
-
-            txMgr.commit(dbConn);
+            this.persistVisitor.visit(dbConn, jcrNode);
             sMgr.finished(dbConn);
         }
         catch (Exception ex) {
@@ -169,18 +159,6 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
             closeQuietly(dbConn);
         }
 
-    }
-
-    /**
-     * Write the error to the database
-     */
-    protected void writeFinishedWithError(Connection conn, String error) {
-        try {
-            sMgr.finishedWithError(conn, error);
-        }
-        catch (SQLException sqlEx) {
-            LOG.error("Could not write finish status to database, queue will be broken.", sqlEx);
-        }
     }
 
 
@@ -196,23 +174,28 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
             return;
         }
 
-        LOG.info("Deleting from database: " + path);
-
-        Connection conn = null;
+        Connection dbConn = null;
 
         try {
-            conn = getDatabaseConnection(this.connInfo);
+            dbConn = getDatabaseConnection(this.connInfo);
 
-            txMgr.start(conn);
-            nodeDao.removeAll(conn, path);
-            propertyDao.removeAll(conn, path);
-            txMgr.commit(conn);
+            // can we write right now? if not, end.
+            if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
+                LOG.error("Cannot update, synchronizer is currently busy or disabled");
+                return;
+            }
+
+            // set state to update.
+            sMgr.startDelete(dbConn, path);
+            this.deleteVisitor.visit(dbConn, path);
+            sMgr.finished(dbConn);
         }
-        catch (SQLException sqlEx) {
-            rollback(conn);
+        catch (Exception ex) {
+            LOG.error("An error occurred", ex);
+            rollback(dbConn);
         }
         finally {
-            closeQuietly(conn);
+            closeQuietly(dbConn);
         }
     }
 
@@ -231,6 +214,20 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
         }
     }
 
+    /**
+     * Write the error to the database
+     */
+    protected void writeFinishedWithError(Connection conn, String error) {
+        try {
+            sMgr.finishedWithError(conn, error);
+        }
+        catch (SQLException sqlEx) {
+            LOG.error("Could not write finish status to database, queue will be broken.", sqlEx);
+        }
+    }
+
+
+
     public ConnectionInfo getConnectionInfo() {
         return this.connInfo;
     }
@@ -243,17 +240,11 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
         return new TransactionManager();
     }
 
-    protected NodeTransform getNodeTransformInstance() {
-        return new NodeTransform();
+    protected SynchVisitor getPersistSynchVisitor() {
+        return new PersistSynchVisitor();
     }
 
-    protected PropertyDAO getPropertyDAOInstance() {
-        return new PropertyDAO();
+    protected DeleteSynchVisitor getDeleteSynchVisitor() {
+        return new DeleteSynchVisitor();
     }
-
-    protected NodeDAO getNodeDAOInstance() {
-        return new NodeDAO();
-    }
-
-
 }

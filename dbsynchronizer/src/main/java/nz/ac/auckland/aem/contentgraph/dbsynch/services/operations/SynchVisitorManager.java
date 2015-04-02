@@ -1,5 +1,7 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.services.operations;
 
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
+
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
