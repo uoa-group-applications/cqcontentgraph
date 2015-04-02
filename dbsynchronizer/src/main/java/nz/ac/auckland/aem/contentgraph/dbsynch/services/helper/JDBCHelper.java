@@ -53,7 +53,7 @@ public class JDBCHelper {
      */
     public static void closeQuietly(Connection conn) {
         try {
-            if (!conn.isClosed()) {
+            if (conn != null && !conn.isClosed()) {
                 conn.close();
             }
         }
@@ -88,16 +88,18 @@ public class JDBCHelper {
         if (StringUtils.isBlank(query)) {
             throw new IllegalArgumentException("`query` cannot be null");
         }
-        if (callback == null) {
-            throw new IllegalArgumentException("`callback` cannot be null");
-        }
 
         Statement stmt = null;
 
         try {
             stmt = conn.createStatement();
             int affectedRows = stmt.executeUpdate(query, Statement.RETURN_GENERATED_KEYS);
-            return (RT) callback.run(stmt, null);
+
+            if (callback != null) {
+                return (RT) callback.run(stmt, null);
+            } else {
+                return null;
+            }
         }
         catch (SQLException sqlEx) {
             LOG.error("An SQL exception occured", sqlEx);
@@ -117,9 +119,6 @@ public class JDBCHelper {
         if (StringUtils.isBlank(query)) {
             throw new IllegalArgumentException("`query` cannot be null");
         }
-        if (callback == null) {
-            throw new IllegalArgumentException("`callback` cannot be null");
-        }
 
         Statement stmt = null;
         ResultSet rSet = null;
@@ -127,7 +126,12 @@ public class JDBCHelper {
         try {
             stmt = conn.createStatement();
             rSet = stmt.executeQuery(query);
-            return (RT) callback.run(stmt, rSet);
+
+            if (callback != null) {
+                return (RT) callback.run(stmt, rSet);
+            } else {
+                return null;
+            }
         }
         finally {
             if (rSet != null) {
