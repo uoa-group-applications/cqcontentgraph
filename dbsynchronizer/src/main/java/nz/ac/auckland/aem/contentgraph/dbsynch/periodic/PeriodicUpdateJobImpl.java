@@ -9,6 +9,9 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
 import org.apache.felix.scr.annotations.*;
+import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
@@ -16,7 +19,13 @@ import org.slf4j.LoggerFactory;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.query.Query;
+import javax.jcr.query.QueryManager;
+import javax.jcr.query.QueryResult;
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.util.NoSuchElementException;
 
 /**
@@ -47,6 +56,11 @@ import java.util.NoSuchElementException;
 public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
 
     /**
+     * Logger
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(PeriodicUpdateJobImpl.class);
+
+    /**
      * Minimum number of minutes
      */
     public static final int MIN_N_MINUTES = 1;
@@ -67,12 +81,6 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     public static final String JOB_NAME = "db_synch_periodic";
 
     /**
-     * Logger
-     */
-    private static final Logger LOG = LoggerFactory.getLogger(PeriodicUpdateJobImpl.class);
-
-
-    /**
      * Is this service enabled?
      */
     private boolean enabled;
@@ -81,6 +89,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
      * Number of minutes to wait between periodic schedulings
      */
     private Integer nMinutes = 5;
+
 
     @Reference
     private DatabaseSynchronizer dbSynch;
@@ -91,10 +100,30 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     @Reference
     private Scheduler scheduler;
 
+    @Reference
+    private ResourceResolverFactory resolverFactory;
+    private ResourceResolver resolver;
+    private Session jcrSession;
+
     private SynchronizationManager sMgr = getSynchronizationManager();
     private TransactionManager txMgr = getTransactionManager();
     private SynchVisitor<Node> synchVisitor = getSynchVisitor();
 
+
+    public void startSession() {
+        if (this.jcrSession != null) {
+            return;
+        }
+
+        this.resolver = this.getResourceResolver();
+        this.jcrSession = this.resolver.adaptTo(Session.class);
+    }
+
+    public void stopSession() {
+        if (this.jcrSession != null && this.jcrSession.isLive()) {
+            this.jcrSession.logout();
+        }
+    }
 
     /**
      * This method is called when the bundle is activated or when the bundle's configuration
@@ -106,6 +135,8 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     public void configurationChanged(ComponentContext context) {
         this.nMinutes = getNormalizedMinutesConfiguration(context);
         this.enabled = (Boolean) context.getProperties().get("enabled");
+
+        startSession();
 
         try {
             removeExistingPeriodicJob();
@@ -263,12 +294,46 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     }
 
     /**
+     * Retrieve all the nodes that have changed since <code>`since`</code>
      *
-     * @param since
-     * @return
+     * @param since the date to check for.
+     * @return a node iterator
      */
     protected NodeIterator getNodesChangedSince(Date since) {
+        String fmtSince = getJCRFormattedDate(since);
+
+        try {
+            QueryManager qMgr = jcrSession.getWorkspace().getQueryManager();
+            Query query = qMgr.createQuery(
+                String.format(
+                    "SELECT p.* FROM [nt:base] AS p WHERE p.[jcr:created] >= CAST('%s' AS DATE)",
+                    fmtSince
+                ),
+                Query.JCR_SQL2
+            );
+
+            QueryResult qResult = query.execute();
+            return qResult.getNodes();
+        }
+        catch (RepositoryException rEx) {
+            LOG.error("A repository exception occurred", rEx);
+        }
+
         return null;
+    }
+
+    /**
+     * Get the JCR formatted date
+     *
+     * @param date is the date to convert to a JCR date
+     * @return a JCR formatted date
+     */
+    protected String getJCRFormattedDate(Date date) {
+        if (date == null) {
+            date = new Date(0);
+        }
+        SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'");
+        return sdFormat.format(date);
     }
 
 
@@ -293,6 +358,18 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
         return new PersistSynchVisitor();
     }
 
+    /**
+     * @return a resource resolver instance, make sure to close it!
+     */
+    protected ResourceResolver getResourceResolver() {
+        try {
+            return this.resolverFactory.getAdministrativeResourceResolver(null);
+        }
+        catch (LoginException lEx) {
+            LOG.error("Could not retrieve administration resource resolver", lEx);
+            return null;
+        }
+    }
 
 }
 

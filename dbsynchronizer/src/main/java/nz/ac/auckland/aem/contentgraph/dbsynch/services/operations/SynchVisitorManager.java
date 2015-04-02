@@ -5,6 +5,7 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
+import java.sql.Connection;
 
 /**
  * @author Marnix Cook
@@ -19,7 +20,7 @@ public class SynchVisitorManager {
      * @param exclude all the paths that are to be excluded from visting
      * @param visitor the visitor to call the node with
      */
-    public void recursiveVisit(Node base, String[] exclude, SynchVisitor visitor) throws RepositoryException {
+    public void recursiveVisit(Connection conn, Node base, String[] exclude, SynchVisitor visitor) throws Exception {
         // base cases
 
         // 1. null?
@@ -33,14 +34,14 @@ public class SynchVisitorManager {
         }
 
         // execute.
-        visitor.visit(base);
+        visitor.visit(conn, base);
 
         // children? recurse.
         if (base.hasNodes()) {
             NodeIterator nIterator = base.getNodes();
             while (nIterator.hasNext()) {
                 Node childNode = nIterator.nextNode();
-                recursiveVisit(childNode, exclude, visitor);
+                recursiveVisit(conn, childNode, exclude, visitor);
             }
         }
     }

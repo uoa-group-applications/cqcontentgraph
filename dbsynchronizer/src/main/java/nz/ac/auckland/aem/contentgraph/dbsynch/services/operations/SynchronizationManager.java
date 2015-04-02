@@ -65,7 +65,7 @@ public class SynchronizationManager {
     protected String getSynchState(Connection conn) throws SQLException {
         return JDBCHelper.queryWithCallback(
                 conn,
-                "SELECT state FROM SynchState ORDER BY created_at DESC LIMIT 1",
+                "SELECT state FROM SynchState ORDER BY id DESC LIMIT 1",
                 String.class,
                 new SQLRunnable<String>() {
 

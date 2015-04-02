@@ -5,6 +5,7 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitorManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
@@ -98,7 +99,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 Node inclNode = inclResource.adaptTo(Node.class);
 
                 // recurse
-                svMgr.recursiveVisit(inclNode, this.synchWorkflowStep.getExcludedPaths(), this.sVisitor);
+                svMgr.recursiveVisit(dbConn, inclNode, this.synchWorkflowStep.getExcludedPaths(), this.sVisitor);
             }
 
             txMgr.commit(dbConn);
@@ -161,8 +162,8 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
     //    Class seam definition
     // ------------------------------------------------------------------------
 
-    protected SynchVisitor getSynchVisitorInstance() {
-        return new SynchVisitor();
+    protected SynchVisitor<Node> getSynchVisitorInstance() {
+        return new PersistSynchVisitor();
     }
 
     protected NodeDAO getNodeDAO() {
