@@ -209,7 +209,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
      */
     protected void rollback(Connection conn) {
         if (conn != null) {
-            if (!txMgr.rollback(conn)) {
+            if (!txMgr.safeRollback(conn)) {
                 LOG.error("Rollback failed!");
             }
         } else {

@@ -7,6 +7,7 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.sql.*;
+import java.util.List;
 
 import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.escape;
 import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.getLastInsertedId;
@@ -21,12 +22,35 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
 
     public static final String PROPERTY_INSERT = "propertyInsert";
 
+    /**
+     * Batch insert a list of properties
+     *
+     * @param db
+     * @param properties
+     * @return
+     * @throws SQLException
+     */
+    public void insertAll(Database db, List<PropertyDTO> properties) throws SQLException {
+        PreparedStatement pStmt = getInsertStatement(db);
+
+        for (PropertyDTO property : properties) {
+
+            int pIdx = 0;
+            pStmt.setString(++pIdx, property.getName());
+            pStmt.setString(++pIdx, property.getValue());
+            pStmt.setLong(++pIdx, property.getNodeId());
+            pStmt.setString(++pIdx, property.getSub());
+            pStmt.setString(++pIdx, property.getPath());
+
+            pStmt.addBatch();
+        }
+
+        pStmt.executeBatch();
+    }
+
     @Override
     public Long insert(Database db, PropertyDTO property) throws SQLException {
-        PreparedStatement pStmt = db.preparedStatement(
-                PROPERTY_INSERT,
-                "INSERT INTO Property SET name = ?, value = ?, nodeId = ?, sub = ?, path = ?"
-        );
+        PreparedStatement pStmt = getInsertStatement(db);
 
         int pIdx = 0;
         pStmt.setString(++pIdx, property.getName());
@@ -38,27 +62,13 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
         pStmt.executeUpdate();
         return JDBCHelper.getLastInsertedId(pStmt);
 
-//
-//        String insertQuery =
-//                String.format(
-//                        "INSERT INTO Property SET name = '%s', value = '%s', nodeId = '%s', sub = '%s', path = '%s'",
-//                        escape(property.getName()),
-//                        escape(property.getValue()),
-//                        escape(property.getNodeId().toString()),
-//                        escape(property.getSub()),
-//                        escape(property.getPath())
-//                );
-//
-//        Long lastInsertedId =
-//            updateWithCallback(db.getConnection(), insertQuery, Long.class, new SQLRunnable<Long>() {
-//
-//                @Override
-//                public Long run(Statement stmt, ResultSet rSet) throws SQLException {
-//                    return getLastInsertedId(stmt);
-//                }
-//            });
-//
-//        return lastInsertedId;
+    }
+
+    protected PreparedStatement getInsertStatement(Database db) throws SQLException {
+        return db.preparedStatement(
+                PROPERTY_INSERT,
+                "INSERT INTO Property SET name = ?, value = ?, nodeId = ?, sub = ?, path = ?"
+        );
     }
 
     @Override
@@ -78,14 +88,6 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
         PreparedStatement pStmt = db.preparedStatement("propertyRemoveAll", "DELETE FROM Property WHERE path = ?");
         pStmt.setString(1, path);
         pStmt.execute();
-
-//        JDBCHelper.query(
-//            db.getConnection(),
-//            String.format(
-//                "DELETE FROM Property WHERE path = '%s'",
-//                escape(path)
-//            )
-//        );
     }
 
 

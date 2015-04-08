@@ -6,12 +6,22 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
+import java.sql.SQLException;
 
 /**
  * @author Marnix Cook
  */
 public class SynchVisitorManager {
 
+    public static final int COMMIT_THRESHOLD = 100;
+    private int batchCount;
+
+    /**
+     * Reset the batch count
+     */
+    public void reset() {
+        this.batchCount = 0;
+    }
 
     /**
      * Recursive visit through base
@@ -36,6 +46,9 @@ public class SynchVisitorManager {
         // execute.
         visitor.visit(db, base);
 
+        // make sure to commit when necessary
+        commitOnThreshold(db);
+
         // children? recurse.
         if (base.hasNodes()) {
             NodeIterator nIterator = base.getNodes();
@@ -43,6 +56,22 @@ public class SynchVisitorManager {
                 Node childNode = nIterator.nextNode();
                 recursiveVisit(db, childNode, exclude, visitor);
             }
+        }
+
+    }
+
+    /**
+     * Make sure the transaction is committed every `commit_threshold` nodes
+     * that have been inserted.
+     *
+     * @param db
+     * @throws SQLException
+     */
+    protected void commitOnThreshold(Database db) throws SQLException {
+        ++this.batchCount;
+        if (this.batchCount > COMMIT_THRESHOLD){
+            this.batchCount %= 100;
+            db.getConnection().commit();
         }
     }
 
@@ -62,6 +91,5 @@ public class SynchVisitorManager {
         }
         return false;
     }
-
 
 }

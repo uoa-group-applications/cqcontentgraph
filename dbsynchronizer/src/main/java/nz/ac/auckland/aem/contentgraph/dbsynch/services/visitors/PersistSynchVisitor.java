@@ -54,9 +54,9 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
 
         for (PropertyDTO prop : propertyDtos) {
             prop.setNodeId(nodeId);
-            propertyDao.insert(db, prop);
         }
 
+        propertyDao.insertAll(db, propertyDtos);
     }
 
     // ------------------------------------------------------------

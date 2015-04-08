@@ -3,6 +3,7 @@ package nz.ac.auckland.aem.contentgraph.dbsynch.periodic;
 import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
@@ -169,13 +170,12 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
                 return;
             }
 
+            Database db = new Database(dbConn);
+
             // find last update
             Date lastUpdateAt = getLastUpdateDate(dbConn);
 
             sMgr.startPeriodicUpdate(dbConn, lastUpdateAt);
-
-            // start transaction
-            txMgr.start(dbConn);
 
             // get all nodes that have changed since then
             NodeIterator nIterator = getNodesChangedSince(lastUpdateAt);
@@ -186,7 +186,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
                     Node node = nIterator.nextNode();
                     LOG.info("Periodic update for: " + node.getPath());
 
-                    this.synchVisitor.visit(dbConn, node);
+                    this.synchVisitor.visit(db, node);
                 }
             }
 
@@ -201,7 +201,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             if (dbConn != null) {
                 writeFinishedError(dbConn, ex);
             }
-            txMgr.rollback(dbConn);
+            txMgr.safeRollback(dbConn);
         }
         finally {
             JDBCHelper.closeQuietly(dbConn);

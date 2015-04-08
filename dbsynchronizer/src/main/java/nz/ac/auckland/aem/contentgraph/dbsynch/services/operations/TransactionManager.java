@@ -20,21 +20,12 @@ public class TransactionManager {
     private static final Logger LOG = LoggerFactory.getLogger(TransactionManager.class);
 
     /**
-     * Start a transaction on <code>conn</code>
-     *
-     * @param conn is the connection to start a transacton on
-     */
-    public void start(Connection conn) throws SQLException {
-        JDBCHelper.query(conn, "START TRANSACTION");
-    }
-
-    /**
      * Commit the currently active transaction
      *
      * @param conn is the connection to commit on
      */
     public void commit(Connection conn) throws SQLException {
-        JDBCHelper.query(conn, "COMMIT");
+       conn.commit();
     }
 
     /**
@@ -42,9 +33,9 @@ public class TransactionManager {
      *
      * @param conn is the connection to rollback on
      */
-    public boolean rollback(Connection conn) {
+    public boolean safeRollback(Connection conn) {
         try {
-            JDBCHelper.query(conn, "ROLLBACK");
+            conn.rollback();
         }
         catch (SQLException sqlEx) {
             LOG.error("Could not rollback transaction", sqlEx);

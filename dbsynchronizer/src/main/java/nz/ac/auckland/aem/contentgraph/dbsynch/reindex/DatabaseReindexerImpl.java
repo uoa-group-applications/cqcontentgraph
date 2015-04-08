@@ -82,14 +82,19 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
 
         try {
             dbConn = JDBCHelper.getDatabaseConnection(connInfo);
+            dbConn.setAutoCommit(false);
 
             Database database = new Database(dbConn);
 
             sMgr.startReindex(dbConn);
+            svMgr.reset();
 
             // remove all existing content.
             propertyDAO.truncate(database);
             nodeDAO.truncate(database);
+
+            // commit truncation of information
+            txMgr.commit(dbConn);
 
             // iterate over all base paths
             for (String includePath : this.synchWorkflowStep.getIncludePaths()) {
@@ -101,16 +106,20 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 // node
                 Node inclNode = inclResource.adaptTo(Node.class);
 
-                // recurse
+                // recursion
                 svMgr.recursiveVisit(database, inclNode, this.synchWorkflowStep.getExcludedPaths(), this.sVisitor);
             }
 
+            // commit last bits
+            txMgr.commit(dbConn);
+
+            // set state to being 'finished'
             sMgr.finished(dbConn);
 
             LOG.info("Successfully finished the re-indexing process");
         }
         catch (Exception ex) {
-            txMgr.rollback(dbConn);
+            txMgr.safeRollback(dbConn);
 
             // write errors
             LOG.error("Something went wrong during the reindexing process. Finished with errors.", ex);
