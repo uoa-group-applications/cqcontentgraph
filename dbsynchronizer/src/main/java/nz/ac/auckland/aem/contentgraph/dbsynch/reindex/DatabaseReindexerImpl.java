@@ -4,6 +4,7 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
@@ -81,12 +82,14 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
 
         try {
             dbConn = JDBCHelper.getDatabaseConnection(connInfo);
+
+            Database database = new Database(dbConn);
+
             sMgr.startReindex(dbConn);
-            txMgr.start(dbConn);
 
             // remove all existing content.
-            propertyDAO.truncate(dbConn);
-            nodeDAO.truncate(dbConn);
+            propertyDAO.truncate(database);
+            nodeDAO.truncate(database);
 
             // iterate over all base paths
             for (String includePath : this.synchWorkflowStep.getIncludePaths()) {
@@ -99,10 +102,9 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 Node inclNode = inclResource.adaptTo(Node.class);
 
                 // recurse
-                svMgr.recursiveVisit(dbConn, inclNode, this.synchWorkflowStep.getExcludedPaths(), this.sVisitor);
+                svMgr.recursiveVisit(database, inclNode, this.synchWorkflowStep.getExcludedPaths(), this.sVisitor);
             }
 
-            txMgr.commit(dbConn);
             sMgr.finished(dbConn);
 
             LOG.info("Successfully finished the re-indexing process");

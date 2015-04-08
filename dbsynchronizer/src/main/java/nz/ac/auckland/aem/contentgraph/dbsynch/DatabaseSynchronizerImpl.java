@@ -1,6 +1,7 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.DeleteSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
@@ -139,6 +140,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
 
         try {
             dbConn = getDatabaseConnection(this.connInfo);
+            Database database = new Database(dbConn);
 
             // can we write right now? if not, end.
             if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
@@ -148,7 +150,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
 
             // set state to update.
             sMgr.startUpdate(dbConn, jcrNode);
-            this.persistVisitor.visit(dbConn, jcrNode);
+            this.persistVisitor.visit(database, jcrNode);
             sMgr.finished(dbConn);
         }
         catch (Exception ex) {
@@ -178,6 +180,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
 
         try {
             dbConn = getDatabaseConnection(this.connInfo);
+            Database database = new Database(dbConn);
 
             // can we write right now? if not, end.
             if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
@@ -187,7 +190,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
 
             // set state to update.
             sMgr.startDelete(dbConn, path);
-            this.deleteVisitor.visit(dbConn, path);
+            this.deleteVisitor.visit(database, path);
             sMgr.finished(dbConn);
         }
         catch (Exception ex) {

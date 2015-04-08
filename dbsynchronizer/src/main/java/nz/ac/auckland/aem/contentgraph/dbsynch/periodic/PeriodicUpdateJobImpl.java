@@ -110,20 +110,6 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     private SynchVisitor<Node> synchVisitor = getSynchVisitor();
 
 
-    public void startSession() {
-        if (this.jcrSession != null) {
-            return;
-        }
-
-        this.resolver = this.getResourceResolver();
-        this.jcrSession = this.resolver.adaptTo(Session.class);
-    }
-
-    public void stopSession() {
-        if (this.jcrSession != null && this.jcrSession.isLive()) {
-            this.jcrSession.logout();
-        }
-    }
 
     /**
      * This method is called when the bundle is activated or when the bundle's configuration
@@ -154,41 +140,15 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     }
 
     /**
-     * Remove a job from the scheduler, if it doesn't exist, gracefully handle
-     * exception that is thrown.
+     * Stop the session by logging out
      */
-    protected void removeExistingPeriodicJob() {
-        try {
-            this.scheduler.removeJob(JOB_NAME);
-        }
-        catch (NoSuchElementException nseEx) {
-            LOG.info("Nothing was scheduled yet, all good, we'll just skip it.");
+    @Deactivate
+    public void stopSession() {
+        if (this.jcrSession != null && this.jcrSession.isLive()) {
+            this.jcrSession.logout();
         }
     }
 
-    /**
-     * @return the setup number of minutes to wait for the next periodic job.
-     */
-    protected Integer getNormalizedMinutesConfiguration(ComponentContext context) {
-        Integer cfgNMinutes = (Integer) context.getProperties().get("nMinutes");
-
-        // not set? set default.
-        if (cfgNMinutes == null) {
-            cfgNMinutes = DEFAULT_N_MINUTES;
-        }
-
-        // make sure that is is within the predefined range
-        cfgNMinutes =
-            Math.max(
-                MIN_N_MINUTES,
-                Math.min(
-                    MAX_N_MINUTES,
-                    cfgNMinutes
-                )
-            );
-
-        return cfgNMinutes;
-    }
 
 
     /**
@@ -246,6 +206,44 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
         finally {
             JDBCHelper.closeQuietly(dbConn);
         }
+    }
+
+
+    /**
+     * Remove a job from the scheduler, if it doesn't exist, gracefully handle
+     * exception that is thrown.
+     */
+    protected void removeExistingPeriodicJob() {
+        try {
+            this.scheduler.removeJob(JOB_NAME);
+        }
+        catch (NoSuchElementException nseEx) {
+            LOG.info("Nothing was scheduled yet, all good, we'll just skip it.");
+        }
+    }
+
+    /**
+     * @return the setup number of minutes to wait for the next periodic job.
+     */
+    protected Integer getNormalizedMinutesConfiguration(ComponentContext context) {
+        Integer cfgNMinutes = (Integer) context.getProperties().get("nMinutes");
+
+        // not set? set default.
+        if (cfgNMinutes == null) {
+            cfgNMinutes = DEFAULT_N_MINUTES;
+        }
+
+        // make sure that is is within the predefined range
+        cfgNMinutes =
+                Math.max(
+                        MIN_N_MINUTES,
+                        Math.min(
+                                MAX_N_MINUTES,
+                                cfgNMinutes
+                        )
+                );
+
+        return cfgNMinutes;
     }
 
     /**
@@ -369,6 +367,20 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             LOG.error("Could not retrieve administration resource resolver", lEx);
             return null;
         }
+    }
+
+    /**
+     * Start the JCR Session
+     */
+    protected void startSession() {
+
+        // only start if not already started
+        if (this.jcrSession != null) {
+            return;
+        }
+
+        this.resolver = this.getResourceResolver();
+        this.jcrSession = this.resolver.adaptTo(Session.class);
     }
 
 }

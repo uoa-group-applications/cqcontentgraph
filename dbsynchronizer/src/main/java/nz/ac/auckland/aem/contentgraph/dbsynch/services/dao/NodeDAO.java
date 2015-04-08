@@ -2,13 +2,13 @@ package nz.ac.auckland.aem.contentgraph.dbsynch.services.dao;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.sql.*;
 
 import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.escape;
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.queryWithCallback;
 import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.updateWithCallback;
 
 /**
@@ -18,101 +18,119 @@ import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper
  */
 public class NodeDAO implements GenericDAO<NodeDTO, Long> {
 
-    private PropertyDAO propertyDao = new PropertyDAO();
+    public static final String NODE_REMOVE_ALL = "nodeRemoveAll";
+    public static final String NODE_ID_FOR_PATH = "nodeIdForPath";
+    public static final String NODE_TRUNCATE = "nodeTruncate";
 
     /**
      * Insert a Node DTO into the database and return the id it got.
      *
-     * @param conn the connection object
+     * @param db the wrapper object
      * @param dto the dto to insert
      * @return the ID under which it was inserted
      *
      * @throws SQLException when something went wrong inserting the NodeDTO.
      */
     @Override
-    public Long insert(Connection conn, NodeDTO dto) throws SQLException {
+    public Long insert(Database db, NodeDTO dto) throws SQLException {
 
-        Long parentId = getNodeIdForPath(conn, dto.getParentPath());
+        Long parentId = getNodeIdForPath(db, dto.getParentPath());
 
-        String insertQuery =
-                String.format(
-                    "INSERT INTO Node SET " +
-                            "path = '%s', " +
-                            "site = '%s', " +
-                            "sub = '%s', " +
-                            "resourceType = '%s', " +
-                            "type = '%s', " +
-                            "title = '%s', " +
-                            "parent_id = %s",
+        PreparedStatement stmt =
+            db.preparedStatement(
+                "nodeInsertQuery",
+                "INSERT INTO Node SET " +
+                    "path = ?, " +
+                    "site = ?, " +
+                    "sub = ?, " +
+                    "resourceType = ?, " +
+                    "type = ?, " +
+                    "title = ?, " +
+                    "parent_id = ?"
+            );
 
-                    escape(dto.getPath()),
-                    escape(dto.getSite()),
-                    escape(dto.getSub()),
-                    escape(dto.getResourceType()),
-                    escape(dto.getType()),
-                    escape(dto.getTitle()),
-                    parentId == null? "NULL" : parentId.toString()
-                );
+        int pIdx = 0;
+        stmt.setString(++pIdx, dto.getPath());
+        stmt.setString(++pIdx, dto.getSite());
+        stmt.setString(++pIdx, dto.getSub());
+        stmt.setString(++pIdx, dto.getResourceType());
+        stmt.setString(++pIdx, dto.getType());
+        stmt.setString(++pIdx, dto.getTitle());
 
-        Long lastInsertedId =
-            updateWithCallback(conn, insertQuery, Long.class, new SQLRunnable<Long>() {
+        if (parentId == null) {
+            stmt.setNull(++pIdx, java.sql.Types.INTEGER);
+        } else {
+            stmt.setLong(++pIdx, parentId);
+        }
 
-        @Override
-        public Long run(Statement stmt, ResultSet rSet) throws SQLException {
-                return JDBCHelper.getLastInsertedId(stmt);
-                    }
-            });
+        stmt.executeUpdate();
 
-        return lastInsertedId;
+        return JDBCHelper.getLastInsertedId(stmt);
     }
 
     /**
      * @return the id or null for the node with path <code>path</code>
      */
-    public Long getNodeIdForPath(Connection conn, String path) throws SQLException {
-        String query = String.format("SELECT id FROM Node WHERE path = '%s'", escape(path));
-        return JDBCHelper.queryWithCallback(conn, query, Long.class, new SQLRunnable<Long>() {
-            public Long run(Statement stmt, ResultSet rSet) throws SQLException {
-                if (!rSet.next()) {
-                    return null;
-                }
-                return rSet.getLong(1);
+    public Long getNodeIdForPath(Database db, String path) throws SQLException {
+
+        PreparedStatement pStmt = db.preparedStatement(
+            NODE_ID_FOR_PATH,
+            "SELECT id FROM Node WHERE path = ?"
+        );
+
+        pStmt.setString(1, path);
+        pStmt.execute();
+
+        ResultSet rSet = null;
+        try {
+            rSet = pStmt.getResultSet();
+            if (!rSet.next()) {
+                return null;
             }
-        });
+            return rSet.getLong(1);
+        }
+        finally {
+            if (rSet != null && !rSet.isClosed()) {
+                rSet.close();
+            }
+        }
     }
 
 
     @Override
-    public void remove(Connection conn, Long id) throws SQLException {
+    public void remove(Database db, Long id) throws SQLException {
         throw new NotImplementedException("Remove for NodeDAO is not implemented");
     }
 
     @Override
-    public void update(Connection conn, Long id, NodeDTO dto) throws SQLException {
+    public void update(Database db, Long id, NodeDTO dto) throws SQLException {
         throw new NotImplementedException("Update for NodeDAO is not implemented");
     }
 
     /**
      * Remove all nodes that belong to, or are a subpath of <code>path</code>
      *
-     * @param con is the connection to operate on
+     * @param db is the connection to operate on
      * @param path is the path to delete.
      *
      * @throws SQLException
      */
-    public void removeAll(Connection con, String path) throws SQLException {
-        JDBCHelper.query(
-            con,
-            String.format(
-                "DELETE FROM Node WHERE path = '%s'",
-                escape(path)
-            )
-        );
-    }
+    public void removeAll(Database db, String path) throws SQLException {
 
+        PreparedStatement stmt =
+                db.preparedStatement(
+                    NODE_REMOVE_ALL,
+                    "DELETE FROM Node WHERE path = ?"
+                );
+
+        stmt.setString(1, path);
+        stmt.execute();
+    }
 
     @Override
-    public void truncate(Connection conn) throws SQLException {
-        JDBCHelper.query(conn, "TRUNCATE TABLE Node");
+    public void truncate(Database db) throws SQLException {
+        db.preparedStatement(NODE_TRUNCATE, "TRUNCATE TABLE Node").execute();
     }
+
+
 }

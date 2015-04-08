@@ -4,6 +4,7 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.PropertyDTO;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.NodeTransform;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
 import org.slf4j.Logger;
@@ -40,25 +41,21 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
      * @param jcrNode the node to persist
      * @throws javax.jcr.RepositoryException
      */
-    public void visit(Connection dbConn, Node jcrNode) throws Exception {
-
+    public void visit(Database db, Node jcrNode) throws Exception {
+        Connection dbConn = db.getConnection();
         LOG.info("Visiting node to persist: {}", jcrNode.getPath());
 
         NodeDTO nodeDto = trans.getNodeDTO(jcrNode);
         List<PropertyDTO> propertyDtos = trans.getPropertyDTOList(jcrNode);
 
-        txMgr.start(dbConn);
+        Long nodeId = nodeDao.insert(db, nodeDto);
 
-        Long nodeId = nodeDao.insert(dbConn, nodeDto);
-
-        // TODO: remove existing properties
+        propertyDao.removeAll(db, jcrNode.getPath());
 
         for (PropertyDTO prop : propertyDtos) {
             prop.setNodeId(nodeId);
-            propertyDao.insert(dbConn, prop);
+            propertyDao.insert(db, prop);
         }
-
-        txMgr.commit(dbConn);
 
     }
 
@@ -81,7 +78,6 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
     protected NodeDAO getNodeDAOInstance() {
         return new NodeDAO();
     }
-
 
 
 }

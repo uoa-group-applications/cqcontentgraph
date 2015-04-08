@@ -1,5 +1,7 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.services.dao;
 
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
+
 import java.sql.*;
 
 /**
@@ -15,14 +17,14 @@ public interface GenericDAO<SourceObject, IdentifierType> {
      * @param info is the information source to insert
      * @return the primary key value
      */
-    IdentifierType insert(Connection conn, SourceObject info) throws SQLException;
+    IdentifierType insert(Database db, SourceObject info) throws SQLException;
 
     /**
      * Remove a record with identifier <code>id</code>
      *
      * @param id identifier to remove
      */
-    void remove(Connection conn, IdentifierType id) throws SQLException;
+    void remove(Database db, IdentifierType id) throws SQLException;
 
     /**
      * Update a record with identifier <code>id</code> with information
@@ -31,10 +33,10 @@ public interface GenericDAO<SourceObject, IdentifierType> {
      * @param id is the identifier to update the row for
      * @param info is the information to store
      */
-    void update(Connection conn, IdentifierType id, SourceObject info) throws SQLException;
+    void update(Database db, IdentifierType id, SourceObject info) throws SQLException;
 
     /**
      * Truncate operation on entire table
      */
-    void truncate(Connection conn) throws SQLException;
+    void truncate(Database db) throws SQLException;
 }

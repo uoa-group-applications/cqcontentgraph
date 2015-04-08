@@ -2,17 +2,13 @@ package nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.NodeTransform;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.jcr.Node;
 import java.sql.Connection;
-import java.sql.SQLException;
-
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.closeQuietly;
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.getDatabaseConnection;
 
 /**
  * @author Marnix Cook
@@ -36,13 +32,15 @@ public class DeleteSynchVisitor implements SynchVisitor<String> {
     private NodeTransform trans = getNodeTransformInstance();
 
     @Override
-    public void visit(Connection dbConn, String path) throws Exception {
+    public void visit(Database db, String path) throws Exception {
+        Connection dbConn = db.getConnection();
+
         LOG.info("Deleting from database: " + path);
 
         txMgr.start(dbConn);
 
-        nodeDao.removeAll(dbConn, path);
-        propertyDao.removeAll(dbConn, path);
+        nodeDao.removeAll(db, path);
+        propertyDao.removeAll(db, path);
 
         txMgr.commit(dbConn);
     }

@@ -230,7 +230,9 @@ public class JDBCHelper {
             }
         }
         finally {
-            gkSet.close();
+            if (gkSet != null && !gkSet.isClosed()) {
+                gkSet.close();
+            }
         }
     }
 
