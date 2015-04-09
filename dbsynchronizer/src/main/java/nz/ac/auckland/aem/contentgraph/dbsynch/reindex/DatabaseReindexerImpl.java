@@ -101,6 +101,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 Resource inclResource = this.getResourceResolver().getResource(includePath);
                 if (inclResource == null) {
                     LOG.error("Could not find `{}`, skipping", includePath);
+                    continue;
                 }
 
                 // node
@@ -112,6 +113,8 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
 
             // commit last bits
             txMgr.commit(dbConn);
+
+            dbConn.setAutoCommit(true);
 
             // set state to being 'finished'
             sMgr.finished(dbConn);

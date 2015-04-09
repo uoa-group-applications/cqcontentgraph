@@ -152,6 +152,8 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
             sMgr.startUpdate(dbConn, jcrNode);
             this.persistVisitor.visit(database, jcrNode);
             sMgr.finished(dbConn);
+
+            dbConn.commit();
         }
         catch (Exception ex) {
             rollback(dbConn);

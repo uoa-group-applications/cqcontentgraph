@@ -9,7 +9,9 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVis
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
+import nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep;
 import org.apache.felix.scr.annotations.*;
+import org.apache.felix.scr.annotations.Properties;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -25,9 +27,12 @@ import javax.jcr.Session;
 import javax.jcr.query.Query;
 import javax.jcr.query.QueryManager;
 import javax.jcr.query.QueryResult;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.SimpleDateFormat;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 /**
  * @author Marnix Cook
@@ -94,6 +99,12 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
 
     @Reference
     private DatabaseSynchronizer dbSynch;
+
+    /**
+     * Synch workflow step
+     */
+    @Reference
+    private SynchWorkflowStep synchWorkflowStep;
 
     /**
      * Scheduler
@@ -164,6 +175,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
         try {
             // connect
             dbConn = JDBCHelper.getDatabaseConnection(connInfo);
+            dbConn.setAutoCommit(false);
 
             if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
                 LOG.info("Already busy or disabled, will skip this particular update");
@@ -175,6 +187,11 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             // find last update
             Date lastUpdateAt = getLastUpdateDate(dbConn);
 
+            if (lastUpdateAt == null) {
+                LOG.warn("Not going to perform periodic update until a reindex was completed");
+                return;
+            }
+
             sMgr.startPeriodicUpdate(dbConn, lastUpdateAt);
 
             // get all nodes that have changed since then
@@ -184,17 +201,21 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             if (nIterator != null) {
                 while (nIterator.hasNext()) {
                     Node node = nIterator.nextNode();
+
+                    if (!shouldUpdate(node)) {
+                        continue;
+                    }
                     LOG.info("Periodic update for: " + node.getPath());
 
                     this.synchVisitor.visit(db, node);
                 }
             }
 
-            // commit transaction
-            txMgr.commit(dbConn);
-
             // set state to 'finished'
             sMgr.finished(dbConn);
+
+            // commit transaction
+            txMgr.commit(dbConn);
         }
         catch (Exception ex) {
             LOG.error("An SQL exception occurred", ex);
@@ -208,6 +229,34 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
         }
     }
 
+
+    /**
+     * Determine whether the path is updatable
+     *
+     * @param node the node to check for validity
+     * @return true if it's an updatable node
+     * @throws RepositoryException
+     */
+    protected boolean shouldUpdate(Node node) throws RepositoryException {
+        String nodePath = node.getPath();
+
+        // if definitely an excluded path, skip it
+        for (String excl : this.synchWorkflowStep.getExcludedPaths()) {
+            if (nodePath.startsWith(excl)) {
+                return false;
+            }
+        }
+
+        // if an included path return true
+        for (String incl : this.synchWorkflowStep.getIncludePaths()) {
+            if (nodePath.startsWith(incl)) {
+                return true;
+            }
+        }
+
+        return false;
+
+    }
 
     /**
      * Remove a job from the scheduler, if it doesn't exist, gracefully handle
@@ -238,8 +287,8 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
                 Math.max(
                         MIN_N_MINUTES,
                         Math.min(
-                                MAX_N_MINUTES,
-                                cfgNMinutes
+                            MAX_N_MINUTES,
+                            cfgNMinutes
                         )
                 );
 
@@ -285,7 +334,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
                         if (!rSet.next()) {
                             return null;
                         }
-                        return new Date(rSet.getTimestamp(1).getTime());
+                        return rSet.getTimestamp(1);
                     }
                 }
         );
@@ -304,8 +353,8 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             QueryManager qMgr = jcrSession.getWorkspace().getQueryManager();
             Query query = qMgr.createQuery(
                 String.format(
-                    "SELECT p.* FROM [nt:base] AS p WHERE p.[jcr:created] >= CAST('%s' AS DATE)",
-                    fmtSince
+                    "SELECT p.* FROM [nt:base] AS p WHERE p.[jcr:created] >= CAST('%s' AS DATE) OR p.[jcr:lastModified] >= CAST('%s' AS DATE)",
+                    fmtSince, fmtSince
                 ),
                 Query.JCR_SQL2
             );
@@ -330,7 +379,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
         if (date == null) {
             date = new Date(0);
         }
-        SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'");
+        SimpleDateFormat sdFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'+12:00'");
         return sdFormat.format(date);
     }
 
