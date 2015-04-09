@@ -284,13 +284,13 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
 
         // make sure that is is within the predefined range
         cfgNMinutes =
-                Math.max(
-                        MIN_N_MINUTES,
-                        Math.min(
-                            MAX_N_MINUTES,
-                            cfgNMinutes
-                        )
-                );
+            Math.max(
+                MIN_N_MINUTES,
+                Math.min(
+                    MAX_N_MINUTES,
+                    cfgNMinutes
+                )
+            );
 
         return cfgNMinutes;
     }
@@ -353,7 +353,9 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             QueryManager qMgr = jcrSession.getWorkspace().getQueryManager();
             Query query = qMgr.createQuery(
                 String.format(
-                    "SELECT p.* FROM [nt:base] AS p WHERE p.[jcr:created] >= CAST('%s' AS DATE) OR p.[jcr:lastModified] >= CAST('%s' AS DATE)",
+                    "SELECT p.* FROM [nt:base] AS p WHERE " +
+                            "p.[jcr:created] >= CAST('%s' AS DATE) OR " +
+                            "p.[jcr:lastModified] >= CAST('%s' AS DATE)",
                     fmtSince, fmtSince
                 ),
                 Query.JCR_SQL2

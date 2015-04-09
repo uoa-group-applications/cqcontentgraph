@@ -4,6 +4,8 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import org.apache.commons.lang.NotImplementedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 
@@ -13,6 +15,11 @@ import java.sql.*;
  * Interfaces with database on Node table
  */
 public class NodeDAO implements GenericDAO<NodeDTO, Long> {
+
+    /**
+     * Logger
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(NodeDAO.class);
 
     /**
      * Insert a Node DTO into the database and return the id it got.
@@ -26,15 +33,16 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     @Override
     public Long insert(Database db, NodeDTO dto) throws SQLException {
 
-        Long parentId = getNodeIdForPath(db, dto.getParentPath());
-        Long existingNodeId = getNodeIdForPath(db, dto.getPath());
+        Long parentId = getNodeIdForPath(db, dto.getParentPath(), dto.getSub());
+        Long existingNodeId = getNodeIdForPath(db, dto.getPath(), dto.getSub());
 
         if (existingNodeId == null) {
+            LOG.info("Node not found in DB `{}`", dto.getPath());
             return insertNode(db, dto, parentId);
         } else {
+            LOG.info("Replacing node with id `{}`, path `{}`", existingNodeId, dto.getPath());
             return replaceNode(db, dto, existingNodeId);
         }
-
     }
 
     /**
@@ -49,15 +57,15 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     protected Long replaceNode(Database db, NodeDTO dto, Long existingNodeId) throws SQLException {
         PreparedStatement stmt =
             db.preparedStatement(
-                    "UPDATE Node SET " +
-                            "path = ?, " +
-                            "site = ?, " +
-                            "sub = ?, " +
-                            "resourceType = ?, " +
-                            "type = ?, " +
-                            "title = ?, " +
-                            "WHERE " +
-                            "id = ?"
+                "UPDATE Node SET " +
+                    "path = ?, " +
+                    "site = ?, " +
+                    "sub = ?, " +
+                    "resourceType = ?, " +
+                    "type = ?, " +
+                    "title = ? " +
+                "WHERE " +
+                    "id = ?"
             );
 
         int pIdx = 0;
@@ -70,7 +78,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
         stmt.setLong(++pIdx, existingNodeId);
         stmt.executeUpdate();
 
-        return JDBCHelper.getLastInsertedId(stmt);
+        return existingNodeId;
     }
 
     /**
@@ -85,7 +93,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     protected Long insertNode(Database db, NodeDTO dto, Long parentId) throws SQLException {
         PreparedStatement stmt =
             db.preparedStatement(
-                    "INSERT INTO Node SET " +
+                "INSERT INTO Node SET " +
                     "path = ?, " +
                     "site = ?, " +
                     "sub = ?, " +
@@ -117,15 +125,17 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     /**
      * @return the id or null for the node with path <code>path</code>
      */
-    public Long getNodeIdForPath(Database db, String path) throws SQLException {
+    public Long getNodeIdForPath(Database db, String path, String sub) throws SQLException {
 
         PreparedStatement pStmt = db.preparedStatement(
-                "SELECT id FROM Node WHERE path = ?"
+                "SELECT id FROM Node WHERE path = ? AND sub = ?"
         );
 
         pStmt.setString(1, path);
+        pStmt.setString(2, sub);
         pStmt.execute();
 
+        // get result
         ResultSet rSet = null;
         try {
             rSet = pStmt.getResultSet();
@@ -164,7 +174,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
 
         PreparedStatement stmt =
                 db.preparedStatement(
-                        "DELETE FROM Node WHERE path = ?"
+                    "DELETE FROM Node WHERE path = ?"
                 );
 
         stmt.setString(1, path);
