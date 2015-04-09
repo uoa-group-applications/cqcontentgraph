@@ -41,13 +41,13 @@ public class Database {
      * @param sql is the SQL statement to prepare
      * @throws SQLException
      */
-    public PreparedStatement addPreparedStatement(String name, String sql) throws SQLException {
-        if (this.namedStatements.containsKey(name)) {
+    public PreparedStatement addPreparedStatement(String sql) throws SQLException {
+        if (this.namedStatements.containsKey(sql)) {
             throw new IllegalArgumentException("Cannot add the same prepared statement twice");
         }
 
         PreparedStatement pSt = this.connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-        this.namedStatements.put(name, pSt);
+        this.namedStatements.put(sql, pSt);
 
         return pSt;
     }
@@ -55,15 +55,15 @@ public class Database {
     /**
      * Retrieve the prepared statement
      *
-     * @param name
+     * @param sql is the SQL query to get the associated prepared statement for.
      * @return
      */
-    public PreparedStatement getPreparedStatement(String name) {
-        if (!this.namedStatements.containsKey(name)) {
-            throw new IllegalArgumentException("No such prepared statement added: " + name);
+    public PreparedStatement getPreparedStatement(String sql) {
+        if (!this.namedStatements.containsKey(sql)) {
+            throw new IllegalArgumentException("No such prepared statement added: " + sql);
         }
 
-        return this.namedStatements.get(name);
+        return this.namedStatements.get(sql);
     }
 
     /**
@@ -77,16 +77,15 @@ public class Database {
     /**
      * Convenience function for often used pattern in retrieving the prepared statements.
      *
-     * @param name name of the prepared statement
      * @param sql SQL of the prepared statement
      * @return an existing or a new prepared statement object
      * @throws SQLException
      */
-    public PreparedStatement preparedStatement(String name, String sql) throws SQLException {
-        if (!hasPreparedStatement(name)) {
-            return addPreparedStatement(name, sql);
+    public PreparedStatement preparedStatement(String sql) throws SQLException {
+        if (!hasPreparedStatement(sql)) {
+            return addPreparedStatement(sql);
         } else {
-            return getPreparedStatement(name);
+            return getPreparedStatement(sql);
         }
     }
 

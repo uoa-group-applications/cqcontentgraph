@@ -1,6 +1,5 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.services.dao;
 
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.PropertyDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
@@ -9,18 +8,12 @@ import org.apache.commons.lang.NotImplementedException;
 import java.sql.*;
 import java.util.List;
 
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.escape;
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.getLastInsertedId;
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.updateWithCallback;
-
 /**
  * @author Marnix Cook
  *
  * Is the property DAO that contains database operations
  */
 public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
-
-    public static final String PROPERTY_INSERT = "propertyInsert";
 
     /**
      * Batch insert a list of properties
@@ -65,10 +58,10 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
     }
 
     protected PreparedStatement getInsertStatement(Database db) throws SQLException {
-        return db.preparedStatement(
-                PROPERTY_INSERT,
+        return
+            db.preparedStatement(
                 "INSERT INTO Property SET name = ?, value = ?, nodeId = ?, sub = ?, path = ?"
-        );
+            );
     }
 
     @Override
@@ -85,7 +78,7 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
      * @throws SQLException
      */
     public void removeAll(Database db, String path) throws SQLException {
-        PreparedStatement pStmt = db.preparedStatement("propertyRemoveAll", "DELETE FROM Property WHERE path = ?");
+        PreparedStatement pStmt = db.preparedStatement("DELETE FROM Property WHERE path = ?");
         pStmt.setString(1, path);
         pStmt.execute();
     }

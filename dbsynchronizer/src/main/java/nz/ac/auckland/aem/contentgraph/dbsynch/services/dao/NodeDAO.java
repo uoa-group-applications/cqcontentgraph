@@ -1,6 +1,5 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.services.dao;
 
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
@@ -8,19 +7,12 @@ import org.apache.commons.lang.NotImplementedException;
 
 import java.sql.*;
 
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.escape;
-import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper.updateWithCallback;
-
 /**
  * @author Marnix Cook
  *
  * Interfaces with database on Node table
  */
 public class NodeDAO implements GenericDAO<NodeDTO, Long> {
-
-    public static final String NODE_REMOVE_ALL = "nodeRemoveAll";
-    public static final String NODE_ID_FOR_PATH = "nodeIdForPath";
-    public static final String NODE_TRUNCATE = "nodeTruncate";
 
     /**
      * Insert a Node DTO into the database and return the id it got.
@@ -35,11 +27,65 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     public Long insert(Database db, NodeDTO dto) throws SQLException {
 
         Long parentId = getNodeIdForPath(db, dto.getParentPath());
+        Long existingNodeId = getNodeIdForPath(db, dto.getPath());
 
+        if (existingNodeId == null) {
+            return insertNode(db, dto, parentId);
+        } else {
+            return replaceNode(db, dto, existingNodeId);
+        }
+
+    }
+
+    /**
+     * Replace an existing node information
+     *
+     * @param db
+     * @param dto
+     * @param existingNodeId
+     * @return
+     * @throws SQLException
+     */
+    protected Long replaceNode(Database db, NodeDTO dto, Long existingNodeId) throws SQLException {
         PreparedStatement stmt =
             db.preparedStatement(
-                "nodeInsertQuery",
-                "INSERT INTO Node SET " +
+                    "UPDATE Node SET " +
+                            "path = ?, " +
+                            "site = ?, " +
+                            "sub = ?, " +
+                            "resourceType = ?, " +
+                            "type = ?, " +
+                            "title = ?, " +
+                            "WHERE " +
+                            "id = ?"
+            );
+
+        int pIdx = 0;
+        stmt.setString(++pIdx, dto.getPath());
+        stmt.setString(++pIdx, dto.getSite());
+        stmt.setString(++pIdx, dto.getSub());
+        stmt.setString(++pIdx, dto.getResourceType());
+        stmt.setString(++pIdx, dto.getType());
+        stmt.setString(++pIdx, dto.getTitle());
+        stmt.setLong(++pIdx, existingNodeId);
+        stmt.executeUpdate();
+
+        return JDBCHelper.getLastInsertedId(stmt);
+    }
+
+    /**
+     * Insert a new node
+     *
+     * @param db
+     * @param dto
+     * @param parentId
+     * @return
+     * @throws SQLException
+     */
+    protected Long insertNode(Database db, NodeDTO dto, Long parentId) throws SQLException {
+        PreparedStatement stmt =
+            db.preparedStatement(
+                    "INSERT INTO Node SET " +
                     "path = ?, " +
                     "site = ?, " +
                     "sub = ?, " +
@@ -58,7 +104,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
         stmt.setString(++pIdx, dto.getTitle());
 
         if (parentId == null) {
-            stmt.setNull(++pIdx, java.sql.Types.INTEGER);
+            stmt.setNull(++pIdx, Types.INTEGER);
         } else {
             stmt.setLong(++pIdx, parentId);
         }
@@ -74,8 +120,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     public Long getNodeIdForPath(Database db, String path) throws SQLException {
 
         PreparedStatement pStmt = db.preparedStatement(
-            NODE_ID_FOR_PATH,
-            "SELECT id FROM Node WHERE path = ?"
+                "SELECT id FROM Node WHERE path = ?"
         );
 
         pStmt.setString(1, path);
@@ -119,8 +164,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
 
         PreparedStatement stmt =
                 db.preparedStatement(
-                    NODE_REMOVE_ALL,
-                    "DELETE FROM Node WHERE path = ?"
+                        "DELETE FROM Node WHERE path = ?"
                 );
 
         stmt.setString(1, path);
@@ -129,7 +173,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
 
     @Override
     public void truncate(Database db) throws SQLException {
-        db.preparedStatement(NODE_TRUNCATE, "TRUNCATE TABLE Node").execute();
+        db.preparedStatement("TRUNCATE TABLE Node").execute();
     }
 
 
