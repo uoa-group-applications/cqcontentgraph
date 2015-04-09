@@ -1,5 +1,6 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch;
 
+import nz.ac.auckland.aem.contentgraph.dbsynch.periodic.PathQueue;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.DeleteSynchVisitor;
@@ -31,7 +32,7 @@ import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper
 @Component(
     immediate = true,
     metatype = true,
-    name = "UoA Database Content Synchronizer"
+    name = "UoA Database Instant Synchronizer"
 )
 @Properties({
     @Property(
@@ -58,13 +59,6 @@ import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper
 })
 public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
 
-    // -----------------------------------------------------------------
-    //      Bundle parameter constants
-    // -----------------------------------------------------------------
-
-    private TransactionManager txMgr = getTxMgrInstance();
-    private SynchronizationManager sMgr = new SynchronizationManager();
-
     /**
      * Logger
      */
@@ -80,15 +74,8 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
      */
     private ConnectionInfo connInfo;
 
-    /**
-     * Persist visitor
-     */
-    private SynchVisitor<Node> persistVisitor = getPersistSynchVisitor();
-
-    /**
-     * Delete visitor
-     */
-    private SynchVisitor<String> deleteVisitor = getDeleteSynchVisitor();
+    @Reference
+    private PathQueue pathQueue;
 
 
 
@@ -128,43 +115,13 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
     @Override
     public void synch(Resource resource) {
         if (!this.enabled) {
-            LOG.info("Database synchronization not enabled, stopping synch");
+            LOG.info("Instant synchronization not enabled, stopping synch");
             return;
         }
 
         LOG.info("Synching the database for resource: " + resource.getPath());
-
-        Node jcrNode = resource.adaptTo(Node.class);
-
-        Connection dbConn = null;
-
-        try {
-            dbConn = getDatabaseConnection(this.connInfo);
-            Database database = new Database(dbConn);
-
-            // can we write right now? if not, end.
-            if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
-                LOG.error("Cannot update, synchronizer is currently busy or disabled");
-                return;
-            }
-
-            // set state to update.
-            sMgr.startUpdate(dbConn, jcrNode);
-            this.persistVisitor.visit(database, jcrNode);
-            sMgr.finished(dbConn);
-
-            dbConn.commit();
-        }
-        catch (Exception ex) {
-            rollback(dbConn);
-            writeFinishedWithError(dbConn, ex.getMessage());
-        }
-        finally {
-            closeQuietly(dbConn);
-        }
-
+        pathQueue.add(resource.getPath());
     }
-
 
     /**
      * Called when a page or asset has been deleted.
@@ -178,78 +135,13 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
             return;
         }
 
-        Connection dbConn = null;
-
-        try {
-            dbConn = getDatabaseConnection(this.connInfo);
-            Database database = new Database(dbConn);
-
-            // can we write right now? if not, end.
-            if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
-                LOG.error("Cannot update, synchronizer is currently busy or disabled");
-                return;
-            }
-
-            // set state to update.
-            sMgr.startDelete(dbConn, path);
-            this.deleteVisitor.visit(database, path);
-            sMgr.finished(dbConn);
-        }
-        catch (Exception ex) {
-            LOG.error("An error occurred", ex);
-            rollback(dbConn);
-        }
-        finally {
-            closeQuietly(dbConn);
-        }
-    }
-
-    /**
-     * Rollback the connection
-     *
-     * @param conn is the connection instance
-     */
-    protected void rollback(Connection conn) {
-        if (conn != null) {
-            if (!txMgr.safeRollback(conn)) {
-                LOG.error("Rollback failed!");
-            }
-        } else {
-            LOG.info("Cannot rollback, connection was already closed");
-        }
-    }
-
-    /**
-     * Write the error to the database
-     */
-    protected void writeFinishedWithError(Connection conn, String error) {
-        try {
-            sMgr.finishedWithError(conn, error);
-        }
-        catch (SQLException sqlEx) {
-            LOG.error("Could not write finish status to database, queue will be broken.", sqlEx);
-        }
+        LOG.info("Removing resource from database: " + path);
+        pathQueue.delete(path);
     }
 
 
 
     public ConnectionInfo getConnectionInfo() {
         return this.connInfo;
-    }
-
-    // ----------------------------------------------------------------------------------------
-    //      Getters for instances that might define the seam of this class
-    // ----------------------------------------------------------------------------------------
-
-    protected TransactionManager getTxMgrInstance() {
-        return new TransactionManager();
-    }
-
-    protected SynchVisitor getPersistSynchVisitor() {
-        return new PersistSynchVisitor();
-    }
-
-    protected DeleteSynchVisitor getDeleteSynchVisitor() {
-        return new DeleteSynchVisitor();
     }
 }

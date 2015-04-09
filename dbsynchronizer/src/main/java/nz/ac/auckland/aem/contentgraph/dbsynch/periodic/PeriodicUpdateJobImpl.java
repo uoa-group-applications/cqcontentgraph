@@ -5,14 +5,15 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.DeleteSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
-import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
 import nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep;
 import org.apache.felix.scr.annotations.*;
 import org.apache.felix.scr.annotations.Properties;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.scheduler.Scheduler;
@@ -34,6 +35,9 @@ import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+import static nz.ac.auckland.aem.contentgraph.dbsynch.periodic.PathElement.PathOperation.Delete;
+import static nz.ac.auckland.aem.contentgraph.dbsynch.periodic.PathElement.PathOperation.Update;
+
 /**
  * @author Marnix Cook
  *
@@ -47,9 +51,9 @@ import java.util.*;
 )
 @Properties({
     @Property(
-        name = "nMinutes",
-        label = "Every `n` minutes",
-        description = "Attempt periodic update every `n` minutes (1 <= n <= 60)",
+        name = "nSeconds",
+        label = "Every `n` seconds",
+        description = "Attempt periodic update every `n` seconds (1 <= n <= 3600)",
         intValue = 5
     ),
     @Property(
@@ -69,17 +73,17 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     /**
      * Minimum number of minutes
      */
-    public static final int MIN_N_MINUTES = 1;
+    public static final int MIN_N_SECONDS = 1;
 
     /**
      * Maximum number of minutes
      */
-    public static final int MAX_N_MINUTES = 60;
+    public static final int MAX_N_SECONDS = 60;
 
     /**
      * Default number of minutes
      */
-    public static final int DEFAULT_N_MINUTES = 5;
+    public static final int DEFAULT_N_SECONDS = 5;
 
     /**
      * Name of the job
@@ -94,7 +98,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     /**
      * Number of minutes to wait between periodic schedulings
      */
-    private Integer nMinutes = 5;
+    private Integer nSeconds = 5;
 
 
     @Reference
@@ -105,6 +109,9 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
      */
     @Reference
     private SynchWorkflowStep synchWorkflowStep;
+
+    @Reference
+    private PathQueue pathQueue;
 
     /**
      * Scheduler
@@ -119,7 +126,8 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
 
     private SynchronizationManager sMgr = getSynchronizationManager();
     private TransactionManager txMgr = getTransactionManager();
-    private SynchVisitor<Node> synchVisitor = getSynchVisitor();
+    private PersistSynchVisitor updateVisitor = getUpdateVisitor();
+    private DeleteSynchVisitor deleteVisitor = getDeleteSynchVisitor();
 
 
 
@@ -131,7 +139,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
      */
     @Activate @Modified
     public void configurationChanged(ComponentContext context) {
-        this.nMinutes = getNormalizedMinutesConfiguration(context);
+        this.nSeconds = getNormalizedSecondsConfiguration(context);
         this.enabled = (Boolean) context.getProperties().get("enabled");
 
         startSession();
@@ -140,7 +148,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             removeExistingPeriodicJob();
 
             if (this.enabled) {
-                this.scheduler.addPeriodicJob(JOB_NAME, this, null, this.nMinutes * 60, false, true);
+                this.scheduler.addPeriodicJob(JOB_NAME, this, null, this.nSeconds, false, true);
             }
             else {
                 LOG.info("The periodic scheduler was disabled. Not going to be used.");
@@ -195,21 +203,11 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             sMgr.startPeriodicUpdate(dbConn, lastUpdateAt);
 
             // get all nodes that have changed since then
+            Set<PathElement> queueElements = this.pathQueue.flushAndGet();
             NodeIterator nIterator = getNodesChangedSince(lastUpdateAt);
 
-            // iterator not null? iterate.
-            if (nIterator != null) {
-                while (nIterator.hasNext()) {
-                    Node node = nIterator.nextNode();
-
-                    if (!shouldUpdate(node)) {
-                        continue;
-                    }
-                    LOG.info("Periodic update for: " + node.getPath());
-
-                    this.synchVisitor.visit(db, node);
-                }
-            }
+            doPathQueueUpdates(db, queueElements);
+            synchronizeFromIterator(db, nIterator, queueElements);
 
             // set state to 'finished'
             sMgr.finished(dbConn);
@@ -229,16 +227,84 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
         }
     }
 
+    /**
+     * Update elements that have been found by the JCR query.
+     *
+     * @param db
+     * @param nIterator
+     * @param queueElements
+     * @throws Exception
+     */
+    protected void synchronizeFromIterator(Database db, NodeIterator nIterator, Set<PathElement> queueElements) throws Exception {
+        // iterator not null? iterate.
+        if (nIterator != null) {
+            while (nIterator.hasNext()) {
+                Node node = nIterator.nextNode();
+
+                if (!shouldUpdate(node.getPath())) {
+                    continue;
+                }
+
+                if (nodeInQueue(queueElements, node)) {
+                    LOG.info("Was already synched from instant queue, not going to do it twice. Skipped.");
+                    continue;
+                }
+
+                LOG.info("Periodic update for: " + node.getPath());
+                this.updateVisitor.visit(db, node);
+            }
+        }
+    }
+
+    /**
+     * @return if the node was in the queue was an update operation already
+     */
+    protected boolean nodeInQueue(Set<PathElement> queueElements, Node node) throws RepositoryException {
+        return queueElements.contains(new PathElement(node.getPath(), Update));
+    }
+
+    /**
+     * Execute the changes that were pushed into the path queue
+     *
+     * @param db the database connection to use
+     * @param queueElements
+     * @throws Exception when something has gone wrong
+     */
+    protected void doPathQueueUpdates(Database db, Set<PathElement> queueElements) throws Exception {
+        for (PathElement pElement : queueElements) {
+
+            // should even bother at all?
+            if (!shouldUpdate(pElement.getPath())) {
+                LOG.info("`{}` not a tracked path, skipping.", pElement.getPath());
+                continue;
+            }
+
+            // should be deleted?
+            if (pElement.getOp() == Delete) {
+                this.deleteVisitor.visit(db, pElement.getPath());
+            }
+
+            // should be updated?
+            if (pElement.getOp() == Update) {
+                Resource resource = this.resolver.getResource(pElement.getPath());
+                if (resource == null) {
+                    LOG.error("Could not update resource at `{}`, not found in repository", pElement.getPath());
+                } else {
+                    this.updateVisitor.visit(db, resource.adaptTo(Node.class));
+                }
+            }
+        }
+    }
+
 
     /**
      * Determine whether the path is updatable
      *
-     * @param node the node to check for validity
+     * @param nodePath the node to check for validity
      * @return true if it's an updatable node
      * @throws RepositoryException
      */
-    protected boolean shouldUpdate(Node node) throws RepositoryException {
-        String nodePath = node.getPath();
+    protected boolean shouldUpdate(String nodePath) throws RepositoryException {
 
         // if definitely an excluded path, skip it
         for (String excl : this.synchWorkflowStep.getExcludedPaths()) {
@@ -274,20 +340,20 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     /**
      * @return the setup number of minutes to wait for the next periodic job.
      */
-    protected Integer getNormalizedMinutesConfiguration(ComponentContext context) {
-        Integer cfgNMinutes = (Integer) context.getProperties().get("nMinutes");
+    protected Integer getNormalizedSecondsConfiguration(ComponentContext context) {
+        Integer cfgNMinutes = (Integer) context.getProperties().get("nSeconds");
 
         // not set? set default.
         if (cfgNMinutes == null) {
-            cfgNMinutes = DEFAULT_N_MINUTES;
+            cfgNMinutes = DEFAULT_N_SECONDS;
         }
 
         // make sure that is is within the predefined range
         cfgNMinutes =
             Math.max(
-                MIN_N_MINUTES,
+                    MIN_N_SECONDS,
                 Math.min(
-                    MAX_N_MINUTES,
+                        MAX_N_SECONDS,
                     cfgNMinutes
                 )
             );
@@ -403,8 +469,12 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     /**
      * @return the synch visitor instance
      */
-    protected SynchVisitor<Node> getSynchVisitor() {
+    protected PersistSynchVisitor getUpdateVisitor() {
         return new PersistSynchVisitor();
+    }
+
+    protected DeleteSynchVisitor getDeleteSynchVisitor() {
+        return new DeleteSynchVisitor();
     }
 
     /**

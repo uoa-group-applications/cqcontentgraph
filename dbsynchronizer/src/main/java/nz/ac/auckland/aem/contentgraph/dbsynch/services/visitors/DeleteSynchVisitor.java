@@ -37,12 +37,13 @@ public class DeleteSynchVisitor implements SynchVisitor<String> {
 
         LOG.info("Deleting from database: " + path);
 
-        txMgr.start(dbConn);
+        dbConn.setAutoCommit(false);
 
         nodeDao.removeAll(db, path);
         propertyDao.removeAll(db, path);
 
         txMgr.commit(dbConn);
+        dbConn.setAutoCommit(true);
     }
 
 
