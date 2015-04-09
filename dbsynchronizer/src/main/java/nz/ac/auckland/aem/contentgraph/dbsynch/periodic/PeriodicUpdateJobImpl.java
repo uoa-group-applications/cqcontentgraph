@@ -140,7 +140,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             removeExistingPeriodicJob();
 
             if (this.enabled) {
-                this.scheduler.addPeriodicJob(JOB_NAME, this, null, this.nMinutes/* * 60*/, false, true);
+                this.scheduler.addPeriodicJob(JOB_NAME, this, null, this.nMinutes * 60, false, true);
             }
             else {
                 LOG.info("The periodic scheduler was disabled. Not going to be used.");
