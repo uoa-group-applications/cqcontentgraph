@@ -33,7 +33,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     @Override
     public Long insert(Database db, NodeDTO dto) throws SQLException {
 
-        Long parentId = getNodeIdForPath(db, dto.getParentPath(), dto.getSub());
+        Long parentId = getNodeIdForPath(db, dto.getParentPath(), dto.getParentSub());
         Long existingNodeId = getNodeIdForPath(db, dto.getPath(), dto.getSub());
 
         if (existingNodeId == null) {
@@ -172,13 +172,31 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
      */
     public void removeAll(Database db, String path) throws SQLException {
 
-        PreparedStatement stmt =
-                db.preparedStatement(
-                    "DELETE FROM Node WHERE path = ?"
-                );
+        if (path.contains("/jcr:content")) {
+            int jcrContentIdx = path.indexOf("/jcr:content");
+            String sub = path.substring(jcrContentIdx + 1);
+            String strippedPath = path.substring(0, jcrContentIdx);
 
-        stmt.setString(1, path);
-        stmt.execute();
+            PreparedStatement stmt =
+                    db.preparedStatement(
+                            "DELETE FROM Node WHERE path = ? AND sub LIKE ?"
+                    );
+
+            stmt.setString(1, strippedPath);
+            stmt.setString(2, sub + "%");
+            stmt.execute();
+        }
+        else {
+
+            PreparedStatement stmt =
+                    db.preparedStatement(
+                        "DELETE FROM Node WHERE path = ?"
+                    );
+
+            stmt.setString(1, path);
+            stmt.execute();
+        }
+
     }
 
     @Override

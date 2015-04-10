@@ -92,22 +92,6 @@
                                 <filter>
                                     <root>/apps/contentgraph</root>
                                 </filter>
-
-                                <!-- launchers -->
-                                <filter>
-                                    <root>/etc/workflow/launcher/config/content-synchronise</root>
-                                </filter>
-                                <filter>
-                                    <root>/etc/workflow/launcher/config/content-synchronise-pagedel</root>
-                                </filter>
-                                <filter>
-                                    <root>/etc/workflow/launcher/config/content-synchronise-assetdel</root>
-                                </filter>
-
-                                <!-- actual workflows -->
-                                <filter>
-                                    <root>/etc/workflow/models/content-synchronisation</root>
-                                </filter>
                             </filters>
                             <properties>
                                 <acHandling>Overwrite</acHandling>

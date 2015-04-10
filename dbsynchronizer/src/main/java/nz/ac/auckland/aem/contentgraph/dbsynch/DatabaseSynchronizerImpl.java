@@ -77,8 +77,6 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
     @Reference
     private PathQueue pathQueue;
 
-
-
     /**
      * Called when the configuration changed
      *

@@ -275,7 +275,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
 
             // should even bother at all?
             if (!shouldUpdate(pElement.getPath())) {
-                LOG.info("`{}` not a tracked path, skipping.", pElement.getPath());
+                LOG.debug("`{}` not a tracked path, skipping.", pElement.getPath());
                 continue;
             }
 

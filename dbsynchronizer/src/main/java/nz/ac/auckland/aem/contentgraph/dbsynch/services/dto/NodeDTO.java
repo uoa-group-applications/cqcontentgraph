@@ -1,6 +1,7 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.services.dto;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.DtoFromRow;
+import org.apache.commons.lang.StringUtils;
 
 import javax.jcr.Node;
 import java.sql.ResultSet;
@@ -103,11 +104,32 @@ public class NodeDTO implements DtoFromRow {
         return dto;
     }
 
+    protected String getLevelUp(String from) {
+        int lastSlash = from.lastIndexOf('/');
+        if (lastSlash == -1) {
+            return "";
+        }
+        return from.substring(0, lastSlash);
+    }
+
     /**
      * @return the parent path
      */
     public String getParentPath() {
-        return path.substring(0, path.lastIndexOf('/'));
+        if (StringUtils.isEmpty(this.sub)) {
+            return getLevelUp(this.path);
+        }
+        return path;
     }
 
+    /**
+     * @return parent sub path
+     */
+    public String getParentSub() {
+        if (StringUtils.isEmpty(this.sub)) {
+            return "";
+        }
+
+        return getLevelUp(this.sub);
+    }
 }

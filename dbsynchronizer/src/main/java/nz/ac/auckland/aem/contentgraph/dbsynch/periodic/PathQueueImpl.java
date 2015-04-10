@@ -5,6 +5,7 @@ import org.apache.felix.scr.annotations.Service;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static nz.ac.auckland.aem.contentgraph.dbsynch.periodic.PathElement.PathOperation.*;
 
@@ -55,6 +56,6 @@ public class PathQueueImpl implements PathQueue {
      * Reset the queue
      */
     protected void reset() {
-        this.paths = new LinkedHashSet<PathElement>();
+        this.paths = new TreeSet<PathElement>();
     }
 }
