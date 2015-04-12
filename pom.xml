@@ -235,7 +235,6 @@
 	<modules>
 		<module>bundle</module>
         <module>content</module>
-        <module>tclsynchronizer</module>
         <module>dbsynchronizer</module>
     </modules>
 

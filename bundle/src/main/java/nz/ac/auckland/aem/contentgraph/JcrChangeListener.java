@@ -23,10 +23,27 @@ import org.slf4j.LoggerFactory;
  * synchronizers that have been registered inside the composite
  * synchronizer.
  */
-@Component(immediate = true)
+@Component(immediate = true, metatype = true, name = "UoA JCR Change Listener")
 @Service(value = EventHandler.class)
-@Property(name = "event.topics", value = "org/apache/sling/api/resource/Resource/*")
-public class JcrChangeListener implements EventHandler, JobProcessor {
+@Properties({
+    @Property(
+        name = "event.topics",
+        value = "org/apache/sling/api/resource/Resource/*"
+    ),
+    @Property(
+        name = "include",
+        label = "Include these paths",
+        description = "Paths that are included in synchronization (eg. /content/, /etc/tags)",
+        cardinality = Integer.MAX_VALUE
+    ),
+    @Property(
+        name = "exclude",
+        label = "Exclude these paths",
+        description = "Paths that are excluded from synchronization (eg. /content/usergenerated, /content/catalog)",
+        cardinality = Integer.MAX_VALUE
+    )
+})
+public class JcrChangeListener implements EventHandler, JobProcessor, SynchronizationPaths {
 
     /**
      * Word constant for added clarity
@@ -56,12 +73,25 @@ public class JcrChangeListener implements EventHandler, JobProcessor {
     private ResourceResolver resourceResolver;
 
     /**
+     * Include paths
+     */
+    private String[] includePaths;
+
+    /**
+     * Exclude paths
+     */
+    private String[] excludePaths;
+
+    /**
      * Called when the bundle is either activated
      *
      * @param context is the component context
      */
     @Activate
     public void activation(ComponentContext context) {
+
+        this.includePaths = (String[]) context.getProperties().get("include");
+        this.excludePaths = (String[]) context.getProperties().get("exclude");
 
         if (this.resourceResolver != null) {
             LOG.info("Resource resolver already instantiated, skipping activation code");
@@ -121,6 +151,20 @@ public class JcrChangeListener implements EventHandler, JobProcessor {
 
 
         return SUCCESSFUL;
+    }
+
+    /**
+     * @return the excluded paths
+     */
+    public String[] getExcludedPaths() {
+        return this.excludePaths;
+    }
+
+    /**
+     * @return the included paths
+     */
+    public String[] getIncludePaths() {
+        return this.includePaths;
     }
 
 

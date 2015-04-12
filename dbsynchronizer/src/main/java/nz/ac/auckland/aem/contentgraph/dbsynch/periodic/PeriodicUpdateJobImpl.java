@@ -1,5 +1,6 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.periodic;
 
+import nz.ac.auckland.aem.contentgraph.SynchronizationPaths;
 import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
@@ -9,7 +10,6 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.DeleteSynchVisi
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
-import nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep;
 import org.apache.felix.scr.annotations.*;
 import org.apache.felix.scr.annotations.Properties;
 import org.apache.sling.api.resource.LoginException;
@@ -108,7 +108,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
      * Synch workflow step
      */
     @Reference
-    private SynchWorkflowStep synchWorkflowStep;
+    private SynchronizationPaths synchPaths;
 
     @Reference
     private PathQueue pathQueue;
@@ -307,14 +307,14 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     protected boolean shouldUpdate(String nodePath) throws RepositoryException {
 
         // if definitely an excluded path, skip it
-        for (String excl : this.synchWorkflowStep.getExcludedPaths()) {
+        for (String excl : this.synchPaths.getExcludedPaths()) {
             if (nodePath.startsWith(excl)) {
                 return false;
             }
         }
 
         // if an included path return true
-        for (String incl : this.synchWorkflowStep.getIncludePaths()) {
+        for (String incl : this.synchPaths.getIncludePaths()) {
             if (nodePath.startsWith(incl)) {
                 return true;
             }

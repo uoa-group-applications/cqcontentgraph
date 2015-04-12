@@ -1,14 +1,9 @@
-package nz.ac.auckland.aem.contentgraph.workflow;
-
-import com.adobe.granite.workflow.exec.WorkflowProcess;
+package nz.ac.auckland.aem.contentgraph;
 
 /**
  * @author Marnix Cook
- *
- * Marker interface for synchronization workflow step, inherits
- * the workflow process interface.
  */
-public interface SynchWorkflowStep extends WorkflowProcess {
+public interface SynchronizationPaths {
 
     /**
      * @return the paths that are to be included when synchronization happens
@@ -19,5 +14,6 @@ public interface SynchWorkflowStep extends WorkflowProcess {
      * @return the paths that are to be excluded from synchronisation
      */
     public String[] getExcludedPaths();
+
 
 }

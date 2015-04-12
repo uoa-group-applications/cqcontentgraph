@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * @author Marnix Cook
  *
- * The composite class
+ * The composite class implementation
  */
 @Service
 @Component(immediate = true)

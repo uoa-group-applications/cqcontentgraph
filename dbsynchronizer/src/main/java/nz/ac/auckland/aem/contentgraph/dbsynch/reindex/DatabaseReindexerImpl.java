@@ -1,5 +1,6 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.reindex;
 
+import nz.ac.auckland.aem.contentgraph.SynchronizationPaths;
 import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
@@ -11,7 +12,6 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitorManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
-import nz.ac.auckland.aem.contentgraph.workflow.SynchWorkflowStep;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.Service;
@@ -42,7 +42,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
     private static final Logger LOG = LoggerFactory.getLogger(DatabaseReindexerImpl.class);
 
     @Reference
-    private SynchWorkflowStep synchWorkflowStep;
+    private SynchronizationPaths synchPaths;
 
     /**
      * Necessary to get the database connection information
@@ -97,7 +97,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
             txMgr.commit(dbConn);
 
             // iterate over all base paths
-            for (String includePath : this.synchWorkflowStep.getIncludePaths()) {
+            for (String includePath : this.synchPaths.getIncludePaths()) {
                 Resource inclResource = this.getResourceResolver().getResource(includePath);
                 if (inclResource == null) {
                     LOG.error("Could not find `{}`, skipping", includePath);
@@ -108,7 +108,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 Node inclNode = inclResource.adaptTo(Node.class);
 
                 // recursion
-                svMgr.recursiveVisit(database, inclNode, this.synchWorkflowStep.getExcludedPaths(), this.sVisitor);
+                svMgr.recursiveVisit(database, inclNode, this.synchPaths.getExcludedPaths(), this.sVisitor);
             }
 
             // commit last bits

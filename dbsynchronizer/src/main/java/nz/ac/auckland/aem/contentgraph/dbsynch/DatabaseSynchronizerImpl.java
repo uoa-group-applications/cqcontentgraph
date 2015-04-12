@@ -31,7 +31,6 @@ import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper
 @Service
 @Component(
     immediate = true,
-    metatype = true,
     name = "UoA Database Instant Synchronizer"
 )
 @Properties({
@@ -117,7 +116,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
             return;
         }
 
-        LOG.info("Synching the database for resource: " + resource.getPath());
+        LOG.info("Queuing add/update: " + resource.getPath());
         pathQueue.add(resource.getPath());
     }
 
@@ -133,7 +132,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
             return;
         }
 
-        LOG.info("Removing resource from database: " + path);
+        LOG.info("Queuing delete: " + path);
         pathQueue.delete(path);
     }
 
