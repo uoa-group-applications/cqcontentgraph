@@ -31,6 +31,7 @@ import static nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper
 @Service
 @Component(
     immediate = true,
+    metatype = true,
     name = "UoA Database Instant Synchronizer"
 )
 @Properties({

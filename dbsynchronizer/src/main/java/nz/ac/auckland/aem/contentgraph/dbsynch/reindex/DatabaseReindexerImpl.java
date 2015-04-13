@@ -1,5 +1,6 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.reindex;
 
+import nz.ac.auckland.aem.contentgraph.JcrChangeListener;
 import nz.ac.auckland.aem.contentgraph.SynchronizationPaths;
 import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
@@ -42,7 +43,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
     private static final Logger LOG = LoggerFactory.getLogger(DatabaseReindexerImpl.class);
 
     @Reference
-    private SynchronizationPaths synchPaths;
+    private JcrChangeListener synchPaths;
 
     /**
      * Necessary to get the database connection information

@@ -5,7 +5,6 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import org.apache.felix.scr.annotations.Reference;
-import org.apache.felix.scr.annotations.Service;
 import org.apache.felix.scr.annotations.sling.SlingServlet;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
@@ -55,7 +54,7 @@ public class ReindexTriggerServlet extends SlingSafeMethodsServlet {
     /**
      * Status manager
      */
-    private SynchronizationManager synchronizationManager = getStatusManagerInstance();
+    private SynchronizationManager synchronizationManager = getSynchronizationManager();
 
     /**
      * Implementation of the GET request.
@@ -111,7 +110,7 @@ public class ReindexTriggerServlet extends SlingSafeMethodsServlet {
     /**
      * @return the status manager instance (part of class seam)
      */
-    protected SynchronizationManager getStatusManagerInstance() {
+    protected SynchronizationManager getSynchronizationManager() {
         return new SynchronizationManager();
     }
 }
