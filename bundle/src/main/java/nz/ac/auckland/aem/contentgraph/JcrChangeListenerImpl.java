@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
  * synchronizers that have been registered inside the composite
  * synchronizer.
  */
-@Service(JcrChangeListener.class)
+@Service
 @Component(
         immediate = true,
         metatype = true,

@@ -1,5 +1,6 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.periodic;
 
+import nz.ac.auckland.aem.contentgraph.JcrChangeListener;
 import nz.ac.auckland.aem.contentgraph.SynchronizationPaths;
 import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
@@ -108,7 +109,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
      * Synch workflow step
      */
     @Reference
-    private SynchronizationPaths synchPaths;
+    private JcrChangeListener synchPaths;
 
     @Reference
     private PathQueue pathQueue;
