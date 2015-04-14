@@ -3,6 +3,8 @@ package nz.ac.auckland.aem.contentgraph.dbsynch.services.operations;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.utils.PerformanceReport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -14,8 +16,26 @@ import java.sql.SQLException;
  */
 public class SynchVisitorManager {
 
+    /**
+     * Logger
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(SynchVisitorManager.class);
+
+    /**
+     * Commit ever 2048 records
+     */
     public static final int COMMIT_THRESHOLD = 2048;
+
+    /**
+     * Current length of batch
+     */
     private int batchCount;
+
+    /**
+     * Stores the two level deep path that is currently being indexed. If it
+     * changes (by called `trackProgress`) a log statement is generated.
+     */
+    private String currentBasePath;
 
     /**
      * Reset the batch count
@@ -45,6 +65,8 @@ public class SynchVisitorManager {
             return 0;
         }
 
+        trackProgress(base.getPath());
+
         // execute.
         visitor.visit(db, base);
 
@@ -70,6 +92,25 @@ public class SynchVisitorManager {
 
         return nVisits;
 
+    }
+
+
+    /**
+     * Tracks whether the base path changes. If it does, a log statement
+     * is emitted so that the person watching the logs has an indication
+     * of what is going on.
+     *
+     * @param path the path to check progress on
+     */
+    protected void trackProgress(String path) {
+        String[] splitPath = path.split("/");
+        if (splitPath.length >= 3) {
+            String basePath = "/" + splitPath[1] + "/" + splitPath[2];
+            if (currentBasePath == null || !currentBasePath.equals(basePath)) {
+                currentBasePath = basePath;
+                LOG.info("Progressing into `{}`", currentBasePath);
+            }
+        }
     }
 
     /**

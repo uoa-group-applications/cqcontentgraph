@@ -40,21 +40,16 @@ public class SynchronizationManager {
     }
 
     /**
-     * Disable the synchronization
+     * Reset the database synchronisation state.
      *
-     * @param db database connection
+     * @param db is the database connection to talk to
+     * @throws SQLException
      */
-    public void disable(Database db) throws SQLException {
-        setSynchState(db, "disabled", "");
-    }
-
-    /**
-     * Enable the synchronization
-     *
-     * @param db database connection
-     */
-    public void enable(Database db) throws SQLException {
-        setSynchState(db, "operational", "");
+    public void reset(Database db) throws SQLException {
+        PreparedStatement pStmt = db.preparedStatement("TRUNCATE TABLE SynchState");
+        if (pStmt != null) {
+            pStmt.executeUpdate();
+        }
     }
 
     /**

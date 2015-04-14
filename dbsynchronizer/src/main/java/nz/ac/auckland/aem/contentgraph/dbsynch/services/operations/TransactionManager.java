@@ -10,7 +10,7 @@ import java.sql.SQLException;
 /**
  * @author Marnix Cook
  *
- * Contains transaction operations
+ * Contains transaction operations with some additional common logic around it
  */
 public class TransactionManager {
 
@@ -25,7 +25,11 @@ public class TransactionManager {
      * @param conn is the connection to commit on
      */
     public void commit(Connection conn) throws SQLException {
-       conn.commit();
+        if (conn != null && !conn.isClosed()) {
+            conn.commit();
+        } else {
+            LOG.warn("Cannot commit to closed connection");
+        }
     }
 
     /**
@@ -35,7 +39,11 @@ public class TransactionManager {
      */
     public boolean safeRollback(Connection conn) {
         try {
-            conn.rollback();
+            if (conn != null && !conn.isClosed()) {
+                conn.rollback();
+            } else {
+                LOG.warn("Cannot perform rollback, the connection was closed already");
+            }
         }
         catch (SQLException sqlEx) {
             LOG.error("Could not rollback transaction", sqlEx);
