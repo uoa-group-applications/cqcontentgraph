@@ -2,6 +2,7 @@ package nz.ac.auckland.aem.contentgraph.dbsynch.services.operations;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
+import nz.ac.auckland.aem.contentgraph.utils.PerformanceReport;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -13,7 +14,7 @@ import java.sql.SQLException;
  */
 public class SynchVisitorManager {
 
-    public static final int COMMIT_THRESHOLD = 100;
+    public static final int COMMIT_THRESHOLD = 2048;
     private int batchCount;
 
     /**
@@ -30,33 +31,44 @@ public class SynchVisitorManager {
      * @param exclude all the paths that are to be excluded from visting
      * @param visitor the visitor to call the node with
      */
-    public void recursiveVisit(Database db, Node base, String[] exclude, SynchVisitor visitor) throws Exception {
+    public int recursiveVisit(Database db, Node base, String[] exclude, SynchVisitor visitor) throws Exception {
+        int nVisits = 0;
         // base cases
 
         // 1. null?
         if (base == null) {
-            return;
+            return 0;
         }
 
         // 2. excluded path?
         if (isExcludedPath(base.getPath(), exclude)) {
-            return;
+            return 0;
         }
 
         // execute.
         visitor.visit(db, base);
 
+        ++nVisits;
+
+        Long start = System.currentTimeMillis();
+
         // make sure to commit when necessary
         commitOnThreshold(db);
+
+        PerformanceReport.getInstance().addToCategory(
+                "commitOnThreshold", System.currentTimeMillis() - start
+            );
 
         // children? recurse.
         if (base.hasNodes()) {
             NodeIterator nIterator = base.getNodes();
             while (nIterator.hasNext()) {
                 Node childNode = nIterator.nextNode();
-                recursiveVisit(db, childNode, exclude, visitor);
+                nVisits += recursiveVisit(db, childNode, exclude, visitor);
             }
         }
+
+        return nVisits;
 
     }
 
@@ -70,7 +82,7 @@ public class SynchVisitorManager {
     protected void commitOnThreshold(Database db) throws SQLException {
         ++this.batchCount;
         if (this.batchCount > COMMIT_THRESHOLD){
-            this.batchCount %= 100;
+            this.batchCount %= COMMIT_THRESHOLD;
             db.getConnection().commit();
         }
     }

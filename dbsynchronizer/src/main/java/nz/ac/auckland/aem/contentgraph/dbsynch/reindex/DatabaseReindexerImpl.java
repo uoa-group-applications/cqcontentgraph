@@ -9,10 +9,12 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.ReindexPersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchVisitorManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
+import nz.ac.auckland.aem.contentgraph.utils.PerformanceReport;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.Service;
@@ -26,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import javax.jcr.Node;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Map;
 
 /**
  * @author Marnix Cook
@@ -81,11 +84,15 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
         ConnectionInfo connInfo = this.dbSynch.getConnectionInfo();
         Connection dbConn = null;
 
+        PerformanceReport.getInstance().resetMap();
+
         try {
             dbConn = JDBCHelper.getDatabaseConnection(connInfo);
             dbConn.setAutoCommit(false);
 
             Database database = new Database(dbConn);
+
+            long timestamp = System.currentTimeMillis();
 
             sMgr.startReindex(dbConn);
             svMgr.reset();
@@ -96,6 +103,8 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
 
             // commit truncation of information
             txMgr.commit(dbConn);
+
+            int nNodes = 0;
 
             // iterate over all base paths
             for (String includePath : this.synchPaths.getIncludePaths()) {
@@ -109,8 +118,11 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
                 Node inclNode = inclResource.adaptTo(Node.class);
 
                 // recursion
-                svMgr.recursiveVisit(database, inclNode, this.synchPaths.getExcludedPaths(), this.sVisitor);
+                nNodes += svMgr.recursiveVisit(database, inclNode, this.synchPaths.getExcludedPaths(), this.sVisitor);
             }
+
+            // commit last properties
+            new PropertyDAO().executeBatch(database);
 
             // commit last bits
             txMgr.commit(dbConn);
@@ -120,7 +132,22 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
             // set state to being 'finished'
             sMgr.finished(dbConn);
 
-            LOG.info("Successfully finished the re-indexing process");
+            long doneStamp = System.currentTimeMillis();
+
+            LOG.info(
+                String.format(
+                    "Successfully finished the re-indexing process, took %.2f seconds for %d nodes.",
+                    ((doneStamp - timestamp) * 0.001),
+                    nNodes
+                )
+            );
+
+            // output all
+            for (Map.Entry<String, Long> spent : PerformanceReport.getInstance().getMap().entrySet()) {
+                LOG.info(
+                        String.format("%40s: %.2f", spent.getKey(), spent.getValue() * 0.001)
+                );
+            }
         }
         catch (Exception ex) {
             txMgr.safeRollback(dbConn);
@@ -178,7 +205,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
     // ------------------------------------------------------------------------
 
     protected SynchVisitor<Node> getSynchVisitorInstance() {
-        return new PersistSynchVisitor();
+        return new ReindexPersistSynchVisitor();
     }
 
     protected NodeDAO getNodeDAO() {

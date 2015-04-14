@@ -3,11 +3,14 @@ package nz.ac.auckland.aem.contentgraph.dbsynch.services.dao;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
+import nz.ac.auckland.aem.contentgraph.utils.PerformanceReport;
 import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author Marnix Cook
@@ -21,6 +24,39 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
      */
     private static final Logger LOG = LoggerFactory.getLogger(NodeDAO.class);
 
+    private static Map<String, Long> nodePathIdMap = new HashMap<String, Long>();
+
+    /**
+     * Reset the mapping
+     */
+    public static void resetMapping() {
+        nodePathIdMap = new HashMap<String, Long>();
+    }
+
+
+    /**
+     * The force insert is used in the case of a full reindex. It assumes that as
+     * nodes are being inserted, none with the same path exist. This is to prevent
+     * us from having to do costly SELECT statements that have a known outcome.
+     *
+     * Note: Should not have the preference in normal use cases.
+     *
+     * @param db the database to write to
+     * @param dto the node information to write
+     * @return the newly inserted identifier
+     *
+     * @throws SQLException when something goes wrong
+     */
+    public Long forceInsert(Database db, NodeDTO dto) throws SQLException {
+
+        Long parentId = getNodeIdForPath(db, dto.getParentPath(), dto.getParentSub());
+        Long newId = insertNode(db, dto, parentId);
+        setNodeIdForPath(dto.getPath(), dto.getSub(), newId);
+
+        return newId;
+    }
+
+
     /**
      * Insert a Node DTO into the database and return the id it got.
      *
@@ -33,17 +69,24 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
     @Override
     public Long insert(Database db, NodeDTO dto) throws SQLException {
 
+        Long start = System.currentTimeMillis();
         Long parentId = getNodeIdForPath(db, dto.getParentPath(), dto.getParentSub());
         Long existingNodeId = getNodeIdForPath(db, dto.getPath(), dto.getSub());
+        PerformanceReport.getInstance().addToCategory("pre-insert selects", System.currentTimeMillis() - start);
 
         if (existingNodeId == null) {
             LOG.info("Node not found in DB `{}`", dto.getPath());
-            return insertNode(db, dto, parentId);
+
+            Long newId = insertNode(db, dto, parentId);
+            setNodeIdForPath(dto.getPath(), dto.getSub(), newId);
+            return newId;
+
         } else {
             LOG.info("Replacing node with id `{}`, path `{}`", existingNodeId, dto.getPath());
             return replaceNode(db, dto, existingNodeId);
         }
     }
+
 
     /**
      * Replace an existing node information
@@ -122,10 +165,26 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
         return JDBCHelper.getLastInsertedId(stmt);
     }
 
+
+    protected void setNodeIdForPath(String path, String sub, Long newId) {
+        nodePathIdMap.put(path + "/" + sub, newId);
+    }
+
+    public Long getNodeIdForPath(Database db, String path, String sub) throws SQLException {
+        String mapKey = path + "/" + sub;
+        if (nodePathIdMap.containsKey(mapKey)) {
+            return nodePathIdMap.get(mapKey);
+        } else {
+            Long id = getNodeIdForPathDb(db, path, sub);
+            setNodeIdForPath(path, sub, id);
+            return id;
+        }
+    }
+
     /**
      * @return the id or null for the node with path <code>path</code>
      */
-    public Long getNodeIdForPath(Database db, String path, String sub) throws SQLException {
+    public Long getNodeIdForPathDb(Database db, String path, String sub) throws SQLException {
 
         PreparedStatement pStmt = db.preparedStatement(
                 "SELECT id FROM Node WHERE path = ? AND sub = ?"

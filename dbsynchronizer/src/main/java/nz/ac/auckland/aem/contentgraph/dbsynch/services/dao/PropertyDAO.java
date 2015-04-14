@@ -16,6 +16,13 @@ import java.util.List;
 public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
 
     /**
+     * Threshold after which a batch is written
+     */
+    private static final int BATCH_THRESHOLD = 10000;
+
+    private int currentlyBatched = 0;
+
+    /**
      * Batch insert a list of properties
      *
      * @param db
@@ -38,7 +45,15 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
             pStmt.addBatch();
         }
 
-        pStmt.executeBatch();
+        executeBatchOnThreshold(pStmt);
+    }
+
+    protected void executeBatchOnThreshold(PreparedStatement pStmt) throws SQLException {
+        ++currentlyBatched;
+        if (currentlyBatched > BATCH_THRESHOLD) {
+            pStmt.executeBatch();
+            currentlyBatched %= BATCH_THRESHOLD;
+        }
     }
 
     @Override
@@ -55,6 +70,16 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
         pStmt.executeUpdate();
         return JDBCHelper.getLastInsertedId(pStmt);
 
+    }
+
+    /**
+     * Execute the batch on the property insert statement
+     *
+     * @param db
+     * @throws SQLException
+     */
+    public void executeBatch(Database db) throws SQLException {
+        getInsertStatement(db).executeBatch();
     }
 
     protected PreparedStatement getInsertStatement(Database db) throws SQLException {

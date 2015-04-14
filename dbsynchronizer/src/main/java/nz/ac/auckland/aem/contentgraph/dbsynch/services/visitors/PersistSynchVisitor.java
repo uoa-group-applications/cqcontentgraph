@@ -7,11 +7,14 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.PropertyDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.NodeTransform;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.TransactionManager;
+import nz.ac.auckland.aem.contentgraph.utils.PerformanceReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
 
 /**
@@ -34,6 +37,7 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
     private NodeDAO nodeDao = getNodeDAOInstance();
     private PropertyDAO propertyDao = getPropertyDAOInstance();
     private NodeTransform trans = getNodeTransformInstance();
+    private PerformanceReport report = PerformanceReport.getInstance();
 
     /**
      * Called when a node is visited.
@@ -43,13 +47,24 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
      */
     public void visit(Database db, Node jcrNode) throws Exception {
         Connection dbConn = db.getConnection();
-        LOG.info("Visiting node to persist: {}", jcrNode.getPath());
 
+        LOG.debug("Visiting node to persist: {}", jcrNode.getPath());
+
+        Long start = System.currentTimeMillis();
         NodeDTO nodeDto = trans.getNodeDTO(jcrNode);
+        report.addToCategory("getNodeDTO", System.currentTimeMillis() - start);
+
+        start = System.currentTimeMillis();
         List<PropertyDTO> propertyDtos = trans.getPropertyDTOList(jcrNode);
+        report.addToCategory("getPropertyDTOList", System.currentTimeMillis() - start);
 
-        Long nodeId = nodeDao.insert(db, nodeDto);
+        Long nodeId = insert(db, nodeDto);
+        handleProperties(db, jcrNode, propertyDtos, nodeId);
+    }
 
+    protected void handleProperties(Database db, Node jcrNode, List<PropertyDTO> propertyDtos, Long nodeId) throws SQLException, RepositoryException {
+        Long start;
+        start = System.currentTimeMillis();
         propertyDao.removeAll(db, jcrNode.getPath());
 
         for (PropertyDTO prop : propertyDtos) {
@@ -57,6 +72,15 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
         }
 
         propertyDao.insertAll(db, propertyDtos);
+        report.addToCategory("propertyDao.insert", System.currentTimeMillis() - start);
+    }
+
+
+    protected Long insert(Database db, NodeDTO nodeDto) throws SQLException {
+        Long start = System.currentTimeMillis();
+        Long nodeId = nodeDao.insert(db, nodeDto);
+        report.addToCategory("persist.insert", System.currentTimeMillis() - start);
+        return nodeId;
     }
 
     // ------------------------------------------------------------
