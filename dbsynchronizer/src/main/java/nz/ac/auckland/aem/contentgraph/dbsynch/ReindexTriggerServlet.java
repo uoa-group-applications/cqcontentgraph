@@ -2,6 +2,7 @@ package nz.ac.auckland.aem.contentgraph.dbsynch;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.reindex.DatabaseReindexer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.SynchronizationManager;
 import org.apache.felix.scr.annotations.Reference;
@@ -67,13 +68,13 @@ public class ReindexTriggerServlet extends SlingSafeMethodsServlet {
     @Override
     protected void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws ServletException, IOException {
 
-        Connection dbConn = null;
+        Database db = null;
         ConnectionInfo connInfo = this.dbSynch.getConnectionInfo();
 
         try {
-            dbConn = JDBCHelper.getDatabaseConnection(connInfo);
+            db = new Database(connInfo);
 
-            if (synchronizationManager.isDisabled(dbConn) || synchronizationManager.isBusy(dbConn)) {
+            if (synchronizationManager.isDisabled(db) || synchronizationManager.isBusy(db)) {
                 response.setStatus(STATUS_LOCKED);
                 return;
             }
@@ -89,7 +90,9 @@ public class ReindexTriggerServlet extends SlingSafeMethodsServlet {
             LOG.error("Got SQL exception", sqlEx);
         }
         finally {
-            JDBCHelper.closeQuietly(dbConn);
+            if (db != null) {
+                JDBCHelper.closeQuietly(db.getConnection());
+            }
         }
     }
 

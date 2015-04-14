@@ -6,11 +6,14 @@ import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.NodeDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.PropertyDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.utils.PerformanceReport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 
 /**
  * @author Marnix Cook
@@ -18,6 +21,11 @@ import java.util.List;
  * Reindex version of the persist synch visitor which uses the 'forceInsert' method.
  */
 public class ReindexPersistSynchVisitor extends PersistSynchVisitor {
+
+    /**
+     * Logger
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(ReindexPersistSynchVisitor.class);
 
     /**
      * Node DAO instance
@@ -29,6 +37,20 @@ public class ReindexPersistSynchVisitor extends PersistSynchVisitor {
      */
     private PropertyDAO propertyDao = getPropertyDAOInstance();
 
+    /**
+     * Queue in which properties are stored
+     */
+    private BlockingQueue<List<PropertyDTO>> propQueue;
+
+    /**
+     * Initialize data-members
+     *
+     * @param propQueue the property queue in which the property dtos are stored
+     *                  so that consumers can pick them up and handle them.
+     */
+    public ReindexPersistSynchVisitor(BlockingQueue<List<PropertyDTO>> propQueue) {
+        this.propQueue = propQueue;
+    }
 
     /**
      * Override the insert method so that we can use the `forceInsert` method.
@@ -71,7 +93,12 @@ public class ReindexPersistSynchVisitor extends PersistSynchVisitor {
             prop.setNodeId(nodeId);
         }
 
-        propertyDao.insertAll(db, propertyDtos);
+        try {
+            this.propQueue.put(propertyDtos);
+        }
+        catch (InterruptedException iEx) {
+            LOG.error("Unable to add properties to the queue, caused by:", iEx);
+        }
 
         PerformanceReport
                 .getInstance()

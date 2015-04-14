@@ -180,28 +180,28 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     public void run() {
         ConnectionInfo connInfo = this.dbSynch.getConnectionInfo();
         Connection dbConn = null;
+        Database db = null;
 
         try {
             // connect
             dbConn = JDBCHelper.getDatabaseConnection(connInfo);
             dbConn.setAutoCommit(false);
+            db = new Database(dbConn, connInfo);
 
-            if (sMgr.isBusy(dbConn) || sMgr.isDisabled(dbConn)) {
+            if (sMgr.isBusy(db) || sMgr.isDisabled(db)) {
                 LOG.info("Already busy or disabled, will skip this particular update");
                 return;
             }
 
-            Database db = new Database(dbConn);
-
             // find last update
-            Date lastUpdateAt = getLastUpdateDate(dbConn);
+            Date lastUpdateAt = getLastUpdateDate(db.getConnection());
 
             if (lastUpdateAt == null) {
                 LOG.warn("Not going to perform periodic update until a reindex was completed");
                 return;
             }
 
-            sMgr.startPeriodicUpdate(dbConn, lastUpdateAt);
+            sMgr.startPeriodicUpdate(db, lastUpdateAt);
 
             // get all nodes that have changed since then
             Set<PathElement> queueElements = this.pathQueue.flushAndGet();
@@ -211,15 +211,15 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
             synchronizeFromIterator(db, nIterator, queueElements);
 
             // set state to 'finished'
-            sMgr.finished(dbConn);
+            sMgr.finished(db);
 
             // commit transaction
-            txMgr.commit(dbConn);
+            txMgr.commit(db.getConnection());
         }
         catch (Exception ex) {
             LOG.error("An SQL exception occurred", ex);
-            if (dbConn != null) {
-                writeFinishedError(dbConn, ex);
+            if (db != null) {
+                writeFinishedError(db, ex);
             }
             txMgr.safeRollback(dbConn);
         }
@@ -365,9 +365,9 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     /**
      * Write an error to the synch status table
      */
-    protected void writeFinishedError(Connection dbConn, Exception ex) {
+    protected void writeFinishedError(Database db, Exception ex) {
         try {
-            sMgr.finishedWithError(dbConn, ex.getMessage());
+            sMgr.finishedWithError(db, ex.getMessage());
         }
         catch (SQLException sqlEx2) {
             LOG.error("Could not log error result", sqlEx2);

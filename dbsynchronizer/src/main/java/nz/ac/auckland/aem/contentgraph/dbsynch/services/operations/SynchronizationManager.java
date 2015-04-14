@@ -1,13 +1,11 @@
 package nz.ac.auckland.aem.contentgraph.dbsynch.services.operations;
 
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.SQLRunnable;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
 
 import javax.jcr.Node;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -25,8 +23,8 @@ public class SynchronizationManager {
     /**
      * @return true if synchronization is currently underway
      */
-    public boolean isBusy(Connection conn) throws SQLException {
-        String state = getSynchState(conn);
+    public boolean isBusy(Database db) throws SQLException {
+        String state = getSynchState(db);
         return
             "reindexing".equals(state) ||
             "update".equals(state) ||
@@ -37,34 +35,34 @@ public class SynchronizationManager {
     /**
      * @return true if the synchronisation is currently disabled.
      */
-    public boolean isDisabled(Connection conn) throws SQLException {
-        return "disabled".equals(getSynchState(conn));
+    public boolean isDisabled(Database db) throws SQLException {
+        return "disabled".equals(getSynchState(db));
     }
 
     /**
      * Disable the synchronization
      *
-     * @param conn database connection
+     * @param db database connection
      */
-    public void disable(Connection conn) throws SQLException {
-        setSynchState(conn, "disabled", "");
+    public void disable(Database db) throws SQLException {
+        setSynchState(db, "disabled", "");
     }
 
     /**
      * Enable the synchronization
      *
-     * @param conn database connection
+     * @param db database connection
      */
-    public void enable(Connection conn) throws SQLException {
-        setSynchState(conn, "operational", "");
+    public void enable(Database db) throws SQLException {
+        setSynchState(db, "operational", "");
     }
 
     /**
      * @return the current synchronization state stored in the database
      */
-    protected String getSynchState(Connection conn) throws SQLException {
+    protected String getSynchState(Database db) throws SQLException {
         return JDBCHelper.queryWithCallback(
-                conn,
+                db.getConnection(),
                 "SELECT state FROM SynchState ORDER BY id DESC LIMIT 1",
                 String.class,
                 new SQLRunnable<String>() {
@@ -83,55 +81,52 @@ public class SynchronizationManager {
     /**
      * Set the synchronisation state to a specific state, optional message can be inserted as well
      *
-     * @param conn
+     * @param db
      * @param state
      * @param msg
      * @throws SQLException
      */
-    protected void setSynchState(Connection conn, String state, String msg) throws SQLException {
-        JDBCHelper.updateWithCallback(
-            conn,
-            String.format(
-                "INSERT INTO SynchState SET state = '%s', msg = '%s'",
-                escape(state), escape(msg)
-            ),
-            Void.class,
-            null
-        );
+    protected void setSynchState(Database db, String state, String msg) throws SQLException {
+        PreparedStatement pStmt =
+                db.preparedStatement("INSERT INTO SynchState SET state = ?, msg = ?");
+
+        pStmt.setString(1, state);
+        pStmt.setString(2, msg);
+        pStmt.executeUpdate();
     }
 
-    public void startReindex(Connection conn) throws SQLException {
-        this.setSynchState(conn, "reindexing", "Complete re-index started");
+    public void startReindex(Database db) throws SQLException {
+        this.setSynchState(db, "reindexing", "Complete re-index started");
     }
 
     /**
      * Indicate a periodic update is now taking place.
      */
-    public void startPeriodicUpdate(Connection conn, Date from) throws SQLException {
+    public void startPeriodicUpdate(Database db, Date from) throws SQLException {
         SimpleDateFormat sdFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
         String fromTime = from == null ? "beginning of time" : sdFormat.format(from);
-        this.setSynchState(conn, "periodic_update", "Looking for changes since " + fromTime);
+        this.setSynchState(db, "periodic_update", "Looking for changes since " + fromTime);
     }
 
     /**
      * Indicate that an update has started on node <code>node</code>
      */
-    public void startUpdate(Connection conn, Node node) throws SQLException {
-        this.setSynchState(conn, "update", String.format("Updating `%s`", node));
+    public void startUpdate(Database db, Node node) throws SQLException {
+        this.setSynchState(db, "update", String.format("Updating `%s`", node));
     }
 
     /**
      * Indicate that an update has started on node <code>node</code>
      */
-    public void startDelete(Connection conn, String nodePath) throws SQLException {
-        this.setSynchState(conn, "update", String.format("Deleting `%s`", nodePath));
+    public void startDelete(Database db, String nodePath) throws SQLException {
+        this.setSynchState(db, "update", String.format("Deleting `%s`", nodePath));
     }
 
     /**
      * The process finished succesfully, flag is no longer set to busy.
      */
-    public void finished(Connection conn) throws SQLException {
-        this.setSynchState(conn, "operational", "Operation completed successfully");
+    public void finished(Database db) throws SQLException {
+        this.setSynchState(db, "operational", "Operation completed successfully");
     }
 
     /**
@@ -140,7 +135,7 @@ public class SynchronizationManager {
      *
      * @param msg is the message to write to the database
      */
-    public void finishedWithError(Connection conn, String msg) throws SQLException {
-        this.setSynchState(conn, "operational", "Error: " + msg);
+    public void finishedWithError(Database db, String msg) throws SQLException {
+        this.setSynchState(db, "operational", "Error: " + msg);
     }
 }

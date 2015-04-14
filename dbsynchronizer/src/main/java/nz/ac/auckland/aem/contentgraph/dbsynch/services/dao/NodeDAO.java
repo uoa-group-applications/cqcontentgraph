@@ -186,9 +186,10 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
      */
     public Long getNodeIdForPathDb(Database db, String path, String sub) throws SQLException {
 
-        PreparedStatement pStmt = db.preparedStatement(
+        PreparedStatement pStmt =
+            db.preparedStatement(
                 "SELECT id FROM Node WHERE path = ? AND sub = ?"
-        );
+            );
 
         pStmt.setString(1, path);
         pStmt.setString(2, sub);
@@ -238,7 +239,7 @@ public class NodeDAO implements GenericDAO<NodeDTO, Long> {
 
             PreparedStatement stmt =
                     db.preparedStatement(
-                            "DELETE FROM Node WHERE path = ? AND sub LIKE ?"
+                        "DELETE FROM Node WHERE path = ? AND sub LIKE ?"
                     );
 
             stmt.setString(1, strippedPath);

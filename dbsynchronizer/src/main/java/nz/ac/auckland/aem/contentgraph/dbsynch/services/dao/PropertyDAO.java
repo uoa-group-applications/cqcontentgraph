@@ -18,9 +18,21 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
     /**
      * Threshold after which a batch is written
      */
-    private static final int BATCH_THRESHOLD = 10000;
+    private static final int BATCH_THRESHOLD = 512;
 
-    private int currentlyBatched = 0;
+    /**
+     * Thread local counter for batched number of properties
+     */
+    private ThreadLocal<Integer> currentlyBatched = new ThreadLocal<Integer>();
+
+    /**
+     * Initialize data-members
+     */
+    public PropertyDAO() {
+        if (currentlyBatched.get() == null) {
+            currentlyBatched.set(0);
+        }
+    }
 
     /**
      * Batch insert a list of properties
@@ -48,14 +60,32 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
         executeBatchOnThreshold(pStmt);
     }
 
+    /**
+     * Execute the batch when the threshold has been reached and make sure to
+     * reset the threshold to a normal value.
+     *
+     * @param pStmt
+     * @throws SQLException
+     */
     protected void executeBatchOnThreshold(PreparedStatement pStmt) throws SQLException {
-        ++currentlyBatched;
-        if (currentlyBatched > BATCH_THRESHOLD) {
+        int val = currentlyBatched.get();
+        ++val;
+        if (val > BATCH_THRESHOLD) {
             pStmt.executeBatch();
-            currentlyBatched %= BATCH_THRESHOLD;
+            pStmt.getConnection().commit();
+            val %= BATCH_THRESHOLD;
         }
+        currentlyBatched.set(val);
     }
 
+    /**
+     * Insert a single property into the database
+     *
+     * @param db is the database connection to use
+     * @param property is the property to write
+     * @return the inserted identifier.
+     * @throws SQLException
+     */
     @Override
     public Long insert(Database db, PropertyDTO property) throws SQLException {
         PreparedStatement pStmt = getInsertStatement(db);
@@ -85,7 +115,7 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
     protected PreparedStatement getInsertStatement(Database db) throws SQLException {
         return
             db.preparedStatement(
-                "INSERT INTO Property SET name = ?, value = ?, nodeId = ?, sub = ?, path = ?"
+                "INSERT DELAYED INTO Property SET name = ?, value = ?, nodeId = ?, sub = ?, path = ?"
             );
     }
 
@@ -117,6 +147,6 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
 
     @Override
     public void truncate(Database db) throws SQLException {
-        JDBCHelper.query(db.getConnection(), "TRUNCATE TABLE Property");
+        db.preparedStatement("TRUNCATE TABLE Property").execute();
     }
 }

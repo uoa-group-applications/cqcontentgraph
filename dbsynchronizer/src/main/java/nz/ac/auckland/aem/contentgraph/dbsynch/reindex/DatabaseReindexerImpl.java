@@ -5,9 +5,11 @@ import nz.ac.auckland.aem.contentgraph.SynchronizationPaths;
 import nz.ac.auckland.aem.contentgraph.dbsynch.DatabaseSynchronizer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.NodeDAO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.dao.PropertyDAO;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.dto.PropertyDTO;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.ConnectionInfo;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.Database;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.helper.JDBCHelper;
+import nz.ac.auckland.aem.contentgraph.dbsynch.services.operations.PropertyConsumer;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.PersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.ReindexPersistSynchVisitor;
 import nz.ac.auckland.aem.contentgraph.dbsynch.services.visitors.SynchVisitor;
@@ -28,7 +30,12 @@ import org.slf4j.LoggerFactory;
 import javax.jcr.Node;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author Marnix Cook
@@ -44,6 +51,8 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
      * Logger
      */
     private static final Logger LOG = LoggerFactory.getLogger(DatabaseReindexerImpl.class);
+
+    private static final int N_CONSUMERS = 4;
 
     @Reference
     private JcrChangeListener synchPaths;
@@ -73,6 +82,12 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
     private PropertyDAO propertyDAO = getPropertyDAO();
     private NodeDAO nodeDAO = getNodeDAO();
 
+    //
+    //  Thread information
+    //
+    private List<PropertyConsumer> consumers;
+    private BlockingQueue<List<PropertyDTO>> propertyQueue;
+
 
     /**
      * The runnable method
@@ -82,27 +97,25 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
         LOG.info("Starting to run the reindexer in the background.");
 
         ConnectionInfo connInfo = this.dbSynch.getConnectionInfo();
-        Connection dbConn = null;
+        Database database = null;
 
+        NodeDAO.resetMapping();
         PerformanceReport.getInstance().resetMap();
+        initializeConsumers(connInfo);
 
         try {
-            dbConn = JDBCHelper.getDatabaseConnection(connInfo);
-            dbConn.setAutoCommit(false);
-
-            Database database = new Database(dbConn);
+            database = new Database(connInfo);
+            database.getConnection().setAutoCommit(false);
 
             long timestamp = System.currentTimeMillis();
 
-            sMgr.startReindex(dbConn);
+            sMgr.startReindex(database);
             svMgr.reset();
 
             // remove all existing content.
             propertyDAO.truncate(database);
             nodeDAO.truncate(database);
-
-            // commit truncation of information
-            txMgr.commit(dbConn);
+            database.getConnection().commit();
 
             int nNodes = 0;
 
@@ -124,51 +137,80 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
             // commit last properties
             new PropertyDAO().executeBatch(database);
 
-            // commit last bits
-            txMgr.commit(dbConn);
+            for (PropertyConsumer consumer : this.consumers) {
+                consumer.commit();
+            }
 
-            dbConn.setAutoCommit(true);
+            // commit last bits
+            database.getConnection().commit();
+            database.getConnection().setAutoCommit(true);
 
             // set state to being 'finished'
-            sMgr.finished(dbConn);
+            sMgr.finished(database);
 
-            long doneStamp = System.currentTimeMillis();
-
-            LOG.info(
-                String.format(
-                    "Successfully finished the re-indexing process, took %.2f seconds for %d nodes.",
-                    ((doneStamp - timestamp) * 0.001),
-                    nNodes
-                )
-            );
-
-            // output all
-            for (Map.Entry<String, Long> spent : PerformanceReport.getInstance().getMap().entrySet()) {
-                LOG.info(
-                        String.format("%40s: %.2f", spent.getKey(), spent.getValue() * 0.001)
-                );
-            }
+            logPerformanceReport(timestamp, nNodes);
         }
         catch (Exception ex) {
-            txMgr.safeRollback(dbConn);
+            if (database != null) {
+                txMgr.safeRollback(database.getConnection());
+            }
 
             // write errors
             LOG.error("Something went wrong during the reindexing process. Finished with errors.", ex);
-            writeErrorMessage(dbConn, ex);
+            writeErrorMessage(database, ex);
         }
         finally {
-            JDBCHelper.closeQuietly(dbConn);
+            if (database != null) {
+                JDBCHelper.closeQuietly(database.getConnection());
+            }
         }
 
     }
 
     /**
+     * Log the performance stats that have been gathered during the running
+     * of the reindexer.
+     *
+     * @param timestamp is the starting timestamp
+     * @param nNodes is the number of nodes
+     */
+    protected void logPerformanceReport(long timestamp, int nNodes) {
+        long doneStamp = System.currentTimeMillis();
+
+        LOG.info(
+            String.format(
+                "Successfully finished the re-indexing process, took %.2f seconds for %d nodes.",
+                ((doneStamp - timestamp) * 0.001),
+                nNodes
+            )
+        );
+
+        // output all
+        for (Map.Entry<String, Long> spent : PerformanceReport.getInstance().getMap().entrySet()) {
+            LOG.info(
+                String.format("%40s: %.2f", spent.getKey(), spent.getValue() * 0.001)
+            );
+        }
+    }
+
+    /**
+     * Initialize the consumers
+     *
+     * @param connInfo
+     */
+    protected void initializeConsumers(ConnectionInfo connInfo) {
+        if (consumers == null) {
+            consumers = createConsumers(connInfo, N_CONSUMERS);
+        }
+    }
+
+    /**
      * Write an error message to the synchstate table.
      */
-    protected void writeErrorMessage(Connection dbConn, Exception ex) {
-        if (dbConn != null) {
+    protected void writeErrorMessage(Database db, Exception ex) {
+        if (db != null) {
             try {
-                sMgr.finishedWithError(dbConn, ex.getMessage());
+                sMgr.finishedWithError(db, ex.getMessage());
             }
             catch (SQLException sqlEx) {
                 LOG.error("Cannot reset the state, queue will probably malfunction from now .. !", sqlEx);
@@ -200,12 +242,57 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
         return null;
     }
 
+
+    /**
+     * Create a list of threads (that have been started) with a new database connection.
+     *
+     * @param connInfo
+     * @param nConsumers
+     * @return
+     */
+    protected List<PropertyConsumer> createConsumers(ConnectionInfo connInfo, int nConsumers) {
+        List<PropertyConsumer> consumers = new ArrayList<PropertyConsumer>();
+
+        for (int idx = 0; idx < nConsumers; ++idx) {
+            try {
+                Connection dbConn = JDBCHelper.getDatabaseConnection(connInfo);
+                dbConn.setAutoCommit(false);
+                Database database = new Database(dbConn, connInfo);
+
+                PropertyConsumer propConsumer =
+                        new PropertyConsumer(
+                                database,
+                                getPropertyQueue()
+                        );
+
+                Thread consumerThread = new Thread(propConsumer);
+                consumerThread.setName("Consumer #" + (idx + 1));
+                consumerThread.start();
+
+                consumers.add(propConsumer);
+            }
+            catch (SQLException sqlEx) {
+                LOG.error("Cannot create consumer thread", sqlEx);
+            }
+        }
+
+        return consumers;
+    }
+
+
     // ------------------------------------------------------------------------
     //    Class seam definition
     // ------------------------------------------------------------------------
 
+    protected BlockingQueue<List<PropertyDTO>> getPropertyQueue() {
+        if (propertyQueue == null) {
+            propertyQueue = new LinkedBlockingQueue<List<PropertyDTO>>();
+        }
+        return propertyQueue;
+    }
+
     protected SynchVisitor<Node> getSynchVisitorInstance() {
-        return new ReindexPersistSynchVisitor();
+        return new ReindexPersistSynchVisitor(getPropertyQueue());
     }
 
     protected NodeDAO getNodeDAO() {
