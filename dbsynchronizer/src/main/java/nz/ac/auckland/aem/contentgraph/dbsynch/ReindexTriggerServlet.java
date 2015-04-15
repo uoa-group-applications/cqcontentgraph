@@ -75,6 +75,7 @@ public class ReindexTriggerServlet extends SlingSafeMethodsServlet {
             db = new Database(connInfo);
 
             if (synchronizationManager.isDisabled(db) || synchronizationManager.isBusy(db)) {
+                response.getWriter().write("<html><body><p>Synchronisation has been disabled or reindex is already underway.</p></body></html>");
                 response.setStatus(STATUS_LOCKED);
                 return;
             }

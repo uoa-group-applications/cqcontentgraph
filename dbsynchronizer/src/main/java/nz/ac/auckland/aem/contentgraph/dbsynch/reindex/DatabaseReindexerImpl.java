@@ -188,7 +188,7 @@ public class DatabaseReindexerImpl implements DatabaseReindexer {
         // output all
         for (Map.Entry<String, Long> spent : PerformanceReport.getInstance().getMap().entrySet()) {
             LOG.info(
-                String.format("%40s: %.2f", spent.getKey(), spent.getValue() * 0.001)
+                String.format("%-40s: %.2f", spent.getKey(), spent.getValue() * 0.001)
             );
         }
     }
