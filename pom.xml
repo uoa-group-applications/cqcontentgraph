@@ -35,14 +35,6 @@
       <tag>HEAD</tag>
   </scm>
 
-    <distributionManagement>
-        <repository>
-            <id>uoa-releases</id>
-            <name>UOA Release Repository</name>
-            <url>https://waterfall.auckland.ac.nz/nexus/content/repositories/releases</url>
-        </repository>
-    </distributionManagement>
-
 
     <build>
         <pluginManagement>
