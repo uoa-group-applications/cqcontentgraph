@@ -32,7 +32,7 @@ The project is split up into three modules:
 
 * `contentgraph-content`: the bundle that embeds the bundles above and installs them into the OSGi container.
 
-#### Cool things
+#### Future work
 
 Because of the way the infrastructure is built you can synchronize the JCR with many other systems. One nice use of this system (which has yet to be implemented) would be to signal your ESB that certain content in the CMS has changed so that downstream systems are triggered to retrieve the latest version.
 
