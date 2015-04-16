@@ -14,7 +14,7 @@
 
     <groupId>nz.ac.auckland.aem</groupId>
     <artifactId>contentgraph</artifactId>
-    <version>1.2-SNAPSHOT</version>
+    <version>1.2</version>
     <packaging>pom</packaging>
 
     <name>CQ Content Graph - Reactor Project</name>
@@ -32,7 +32,7 @@
         <url>https://github.com/uoa-group-application/cqcontentgraph</url>
         <connection>scm:git:https://github.com/uoa-group-applications/cqcontentgraph.git</connection>
         <developerConnection>scm:git:git@github.com:uoa-group-applications/cqcontentgraph.git</developerConnection>
-      <tag>HEAD</tag>
+      <tag>contentgraph-1.2</tag>
   </scm>
 
 
