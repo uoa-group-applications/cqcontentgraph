@@ -18,7 +18,7 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
     /**
      * Threshold after which a batch is written
      */
-    private static final int BATCH_THRESHOLD = 512;
+    private static final int BATCH_THRESHOLD = 4096;
 
     /**
      * Thread local counter for batched number of properties
@@ -55,9 +55,9 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
             pStmt.setString(++pIdx, property.getPath());
 
             pStmt.addBatch();
+            executeBatchOnThreshold(pStmt);
         }
 
-        executeBatchOnThreshold(pStmt);
     }
 
     /**
@@ -75,6 +75,7 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
             pStmt.getConnection().commit();
             val %= BATCH_THRESHOLD;
         }
+
         currentlyBatched.set(val);
     }
 
