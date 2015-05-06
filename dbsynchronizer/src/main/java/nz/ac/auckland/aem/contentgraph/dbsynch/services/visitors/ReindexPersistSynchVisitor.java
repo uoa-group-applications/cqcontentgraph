@@ -78,7 +78,7 @@ public class ReindexPersistSynchVisitor extends PersistSynchVisitor {
      * properties
      *
      * @param db database to write to
-     * @param jcrNode is the jcr node to write the properties for
+     * @param node is the jcr node to write the properties for
      * @param propertyDtos is the list of properties
      * @param nodeId the node identifier to attach them to
      *
@@ -86,7 +86,7 @@ public class ReindexPersistSynchVisitor extends PersistSynchVisitor {
      * @throws RepositoryException
      */
     @Override
-    protected void handleProperties(Database db, Node jcrNode, List<PropertyDTO> propertyDtos, Long nodeId) throws SQLException, RepositoryException {
+    protected void handleProperties(Database db, NodeDTO node, List<PropertyDTO> propertyDtos, Long nodeId) throws SQLException, RepositoryException {
         Long start = System.currentTimeMillis();
 
         for (PropertyDTO prop : propertyDtos) {
