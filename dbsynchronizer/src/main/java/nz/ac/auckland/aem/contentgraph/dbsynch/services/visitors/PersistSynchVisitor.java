@@ -72,6 +72,7 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
         }
 
         propertyDao.insertAll(db, propertyDtos);
+        propertyDao.executeBatch(db);
         report.addToCategory("propertyDao.insert", System.currentTimeMillis() - start);
     }
 

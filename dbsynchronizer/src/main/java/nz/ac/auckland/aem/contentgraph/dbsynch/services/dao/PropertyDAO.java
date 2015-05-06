@@ -68,7 +68,11 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
      * @throws SQLException
      */
     protected void executeBatchOnThreshold(PreparedStatement pStmt) throws SQLException {
-        int val = currentlyBatched.get();
+        Integer val = currentlyBatched.get();
+        if (val == null) {
+            val = 0;
+        }
+
         ++val;
         if (val > BATCH_THRESHOLD) {
             pStmt.executeBatch();
