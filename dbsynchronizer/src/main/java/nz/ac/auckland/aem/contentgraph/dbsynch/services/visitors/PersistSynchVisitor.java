@@ -59,13 +59,13 @@ public class PersistSynchVisitor implements SynchVisitor<Node> {
         report.addToCategory("getPropertyDTOList", System.currentTimeMillis() - start);
 
         Long nodeId = insert(db, nodeDto);
-        handleProperties(db, jcrNode, propertyDtos, nodeId);
+        handleProperties(db, nodeDto, propertyDtos, nodeId);
     }
 
-    protected void handleProperties(Database db, Node jcrNode, List<PropertyDTO> propertyDtos, Long nodeId) throws SQLException, RepositoryException {
+    protected void handleProperties(Database db, NodeDTO node, List<PropertyDTO> propertyDtos, Long nodeId) throws SQLException, RepositoryException {
         Long start;
         start = System.currentTimeMillis();
-        propertyDao.removeAll(db, jcrNode.getPath());
+        propertyDao.removeAll(db, node.getPath(), node.getSub());
 
         for (PropertyDTO prop : propertyDtos) {
             prop.setNodeId(nodeId);

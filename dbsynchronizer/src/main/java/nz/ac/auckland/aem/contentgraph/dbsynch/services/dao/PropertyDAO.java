@@ -134,12 +134,13 @@ public class PropertyDAO implements GenericDAO<PropertyDTO, Long> {
      *
      * @param db contains the connection to operate on
      * @param path is the path to delete properties for
-     *
+     * @param sub is the sub path to delete properties for
      * @throws SQLException
      */
-    public void removeAll(Database db, String path) throws SQLException {
-        PreparedStatement pStmt = db.preparedStatement("DELETE FROM Property WHERE path = ?");
+    public void removeAll(Database db, String path, String sub) throws SQLException {
+        PreparedStatement pStmt = db.preparedStatement("DELETE FROM Property WHERE path = ? AND sub = ?");
         pStmt.setString(1, path);
+        pStmt.setString(2, sub);
         pStmt.execute();
     }
 
