@@ -58,6 +58,15 @@ import static nz.ac.auckland.aem.contentgraph.dbsynch.periodic.PathElement.PathO
         intValue = 5
     ),
     @Property(
+        name = "trustQueue",
+        label = "Trust the queue to be accurate?",
+        description =
+                "If enabled the changesets are only sourced from JCR change events, " +
+                "otherwise intensive queries are executed to find the recent changes " +
+                "(better use indexes!).",
+        boolValue = true
+    ),
+    @Property(
         name = "enabled",
         label = "Enabled",
         description = "Service is enabled",
@@ -101,6 +110,10 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
      */
     private Integer nSeconds = 5;
 
+    /**
+     * Do we trust the queue?
+     */
+    private Boolean trustQueue = true;
 
     @Reference
     private DatabaseSynchronizer dbSynch;
@@ -142,6 +155,7 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
     public void configurationChanged(ComponentContext context) {
         this.nSeconds = getNormalizedSecondsConfiguration(context);
         this.enabled = (Boolean) context.getProperties().get("enabled");
+        this.trustQueue = (Boolean) context.getProperties().get("trustQueue");
 
         startSession();
 
@@ -205,10 +219,12 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
 
             // get all nodes that have changed since then
             Set<PathElement> queueElements = this.pathQueue.flushAndGet();
-            NodeIterator nIterator = getNodesChangedSince(lastUpdateAt);
-
             doPathQueueUpdates(db, queueElements);
-            synchronizeFromIterator(db, nIterator, queueElements);
+
+            if (!trustQueue) {
+                NodeIterator nIterator = getNodesChangedSince(lastUpdateAt);
+                synchronizeFromIterator(db, nIterator, queueElements);
+            }
 
             // set state to 'finished'
             sMgr.finished(db);
