@@ -192,6 +192,11 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
      */
     @Override
     public void run() {
+        if (this.dbSynch == null) {
+            LOG.error("Database synchronizer reference not found.");
+            return;
+        }
+
         ConnectionInfo connInfo = this.dbSynch.getConnectionInfo();
         Connection dbConn = null;
         Database db = null;
@@ -199,6 +204,11 @@ public class PeriodicUpdateJobImpl implements PeriodicUpdateJob {
         try {
             // connect
             dbConn = JDBCHelper.getDatabaseConnection(connInfo);
+            if (dbConn == null) {
+                LOG.info("No database connection, skipping.");
+                return;
+            }
+
             dbConn.setAutoCommit(false);
             db = new Database(dbConn, connInfo);
 

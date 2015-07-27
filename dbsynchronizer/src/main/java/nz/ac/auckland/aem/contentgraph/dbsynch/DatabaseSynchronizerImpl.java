@@ -112,7 +112,7 @@ public class DatabaseSynchronizerImpl implements DatabaseSynchronizer {
      */
     @Override
     public void synch(Resource resource) {
-        if (!this.enabled) {
+        if (!this.enabled || resource == null) {
             LOG.info("Instant synchronization not enabled, stopping synch");
             return;
         }
